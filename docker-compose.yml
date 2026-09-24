@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ucon-wedge-erp
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://ucon:ucon_dev_password@postgres:5432/ucon_wedge
+      - APP_URL=http://localhost:3000
+      - JWT_SECRET=ucon_wedge_master_secret_key_2026_super_secure
+      - NODE_ENV=production
+    volumes:
+      - ucon_vault_storage:/app/storage/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    container_name: ucon-wedge-db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ucon
+      POSTGRES_PASSWORD: ucon_dev_password
+      POSTGRES_DB: ucon_wedge
+    volumes:
+      - ucon_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ucon -d ucon_wedge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ucon_vault_storage:
+  ucon_postgres_data:

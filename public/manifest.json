@@ -1,0 +1,22 @@
+{
+  "name": "UCON Wedge Manufacturing ERP",
+  "short_name": "UCON Wedge",
+  "description": "UCON Wedge Manufacturing Management System - Web & Mobile",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0b2345",
+  "theme_color": "#0b2345",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

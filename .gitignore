@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing & Scratch
+scratch/
+scratch_*
+cookies.txt
+*.log
+
+# Production build outputs
+.next/
+out/
+build/
+dist/
+tsconfig.tsbuildinfo
+
+# Uploaded documents in local vault (sensitive scanned invoices)
+storage/documents/*
+!storage/documents/.gitkeep
+
+# Local environment variables
+.env*.local
+.env
+
+# OS Files
+.DS_Store
+*.pem
+Thumbs.db
