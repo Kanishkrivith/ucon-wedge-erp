@@ -806,6 +806,22 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
 }
 
 export async function processDocumentOCR(filePath: string, mimeType: string): Promise<DocumentAIResult> {
+  // 1. Primary AI Vision Engine: Google Gemini 2.0 Flash (98%+ accuracy on complex scans & multi-line tables)
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+  if (apiKey) {
+    try {
+      const { extractDocumentWithGeminiFlash } = await import('./gemini-flash-extractor');
+      return await extractDocumentWithGeminiFlash(filePath, mimeType);
+    } catch (geminiErr: any) {
+      console.warn('Gemini 2.0 Flash extraction failed, falling back to local OCR engine:', geminiErr?.message || geminiErr);
+    }
+  }
+
+  // 2. Fallback Engine: Local unpdf digital text & raster OCR
   const pages: DocumentAIResult['pages'] = [];
   const isPdf = mimeType === 'application/pdf' || path.extname(filePath).toLowerCase() === '.pdf';
 
