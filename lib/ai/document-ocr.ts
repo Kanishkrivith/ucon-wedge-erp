@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { createWorker } from 'tesseract.js';
 import { resolveCanonicalCategory } from './canonical-library';
 
@@ -672,7 +673,8 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
 }
 
 export async function processDocumentOCR(filePath: string, mimeType: string): Promise<DocumentAIResult> {
-  const worker = await createWorker('eng');
+  const cachePath = path.join(os.tmpdir(), 'tesseract-cache');
+  const worker = await createWorker('eng', 1, { cachePath });
   const pages: DocumentAIResult['pages'] = [];
 
   try {

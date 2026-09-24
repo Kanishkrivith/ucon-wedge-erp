@@ -2,13 +2,32 @@ import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { pool } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { processDocumentOCR } from '@/lib/ai/document-ocr';
 import { processExcelDocument } from '@/lib/ai/excel-document-parser';
 
 const json = NextResponse.json;
-const storageRoot = path.join(process.cwd(), 'storage', 'documents');
+
+function getStorageRoot(): string {
+  if (process.env.STORAGE_DIR) {
+    return process.env.STORAGE_DIR;
+  }
+  // In serverless / Vercel / AWS Lambda, process.cwd() is read-only (/var/task).
+  // os.tmpdir() (/tmp) is the only writable storage directory.
+  if (
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.cwd().startsWith('/var/task') ||
+    process.platform === 'linux'
+  ) {
+    return path.join(os.tmpdir(), 'ucon_storage', 'documents');
+  }
+  return path.join(process.cwd(), 'storage', 'documents');
+}
+
+const storageRoot = getStorageRoot();
 
 function sha256(buffer: Buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
@@ -147,7 +166,13 @@ export async function POST(req: Request) {
       );
     }
 
-    await fs.mkdir(storageRoot, { recursive: true });
+    let effectiveStorageRoot = storageRoot;
+    try {
+      await fs.mkdir(effectiveStorageRoot, { recursive: true });
+    } catch {
+      effectiveStorageRoot = path.join(os.tmpdir(), 'ucon_storage', 'documents');
+      await fs.mkdir(effectiveStorageRoot, { recursive: true });
+    }
     const ext = (path.extname(file.name) || '.pdf').toLowerCase();
     const isExcel =
       ext === '.xlsx' ||
@@ -161,7 +186,7 @@ export async function POST(req: Request) {
     const mimeType = file.type || (isExcel ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf');
 
     const filename = `${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]+/g, '_')}`;
-    const filePath = path.join(storageRoot, filename);
+    const filePath = path.join(effectiveStorageRoot, filename);
     await fs.writeFile(filePath, buffer);
 
     const docResult = await pool.query(
@@ -604,6 +629,8 @@ export async function PATCH(req: Request) {
         const baseName = path.basename(doc.storage_uri || doc.original_filename);
         const cand1 = path.join(storageRoot, baseName);
         if (fsSync.existsSync(/*turbopackIgnore: true*/ cand1)) filePath = cand1;
+        const candTmp = path.join(os.tmpdir(), 'ucon_storage', 'documents', baseName);
+        if (fsSync.existsSync(/*turbopackIgnore: true*/ candTmp)) filePath = candTmp;
       }
       if (!filePath || !fsSync.existsSync(/*turbopackIgnore: true*/ filePath)) {
         const archiveDir = process.env.SCAN_ARCHIVE_DIR || (process.platform === 'win32' ? 'D:/Ucon Wedge Unit/all scan/INVOICE/ACE MICROMATIC/INVOICE' : '');
