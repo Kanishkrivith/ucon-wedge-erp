@@ -192,11 +192,14 @@ export async function POST(req: Request) {
     const filePath = path.join(effectiveStorageRoot, filename);
     await fs.writeFile(filePath, buffer);
 
+    const base64Data = buffer.toString('base64');
+
     const docResult = await pool.query(
       `INSERT INTO documents (
         original_filename, document_type, source_kind, storage_uri, source_path,
-        source_folder, ingestion_batch, mime_type, file_size_bytes, file_sha256, status, created_by
-      ) VALUES ($1, 'INVOICE', $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING_REVIEW', $10)
+        source_folder, ingestion_batch, mime_type, file_size_bytes, file_sha256, status, created_by,
+        file_data
+      ) VALUES ($1, 'INVOICE', $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING_REVIEW', $10, $11)
       RETURNING id`,
       [
         file.name,
@@ -209,6 +212,7 @@ export async function POST(req: Request) {
         buffer.length,
         hash,
         user.id,
+        base64Data,
       ]
     );
 
@@ -348,8 +352,12 @@ export async function POST(req: Request) {
           docId,
         ]
       );
-    } catch (ocrErr) {
+    } catch (ocrErr: any) {
       console.warn('OCR extraction warning:', ocrErr);
+      await pool.query(
+        `UPDATE documents SET rejection_reason = $1 WHERE id = $2`,
+        [`OCR warning: ${ocrErr?.message || String(ocrErr)}`, docId]
+      ).catch(() => {});
     }
 
     return json({ ok: true, documentId: docId });
@@ -636,16 +644,23 @@ export async function PATCH(req: Request) {
         const candTmp = path.join(os.tmpdir(), 'ucon_storage', 'documents', baseName);
         if (fsSync.existsSync(/*turbopackIgnore: true*/ candTmp)) filePath = candTmp;
       }
-      if (!filePath || !fsSync.existsSync(/*turbopackIgnore: true*/ filePath)) {
-        const archiveDir = process.env.SCAN_ARCHIVE_DIR || (process.platform === 'win32' ? 'D:/Ucon Wedge Unit/all scan/INVOICE/ACE MICROMATIC/INVOICE' : '');
-        if (archiveDir) {
-          const cand2 = path.join(archiveDir, doc.original_filename);
-          if (fsSync.existsSync(/*turbopackIgnore: true*/ cand2)) filePath = cand2;
+      // If file not found on disk, attempt to hydrate from base64 file_data stored in PostgreSQL
+      if ((!filePath || !fsSync.existsSync(/*turbopackIgnore: true*/ filePath)) && doc.file_data) {
+        try {
+          const effectiveStorageRoot = path.join(os.tmpdir(), 'ucon_storage', 'documents');
+          await fs.mkdir(effectiveStorageRoot, { recursive: true });
+          const fname = `${doc.id}-${(doc.original_filename || 'doc.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_')}`;
+          const hydratedPath = path.join(effectiveStorageRoot, fname);
+          const buf = Buffer.from(doc.file_data, 'base64');
+          await fs.writeFile(hydratedPath, buf);
+          filePath = hydratedPath;
+        } catch (hydrateErr) {
+          console.warn('Could not hydrate file from file_data:', hydrateErr);
         }
       }
 
       if (!filePath || !fsSync.existsSync(/*turbopackIgnore: true*/ filePath)) {
-        return json({ error: 'Original scanned file not found on disk for re-processing' }, { status: 404 });
+        return json({ error: 'Original scanned file not found on disk or database for re-processing' }, { status: 404 });
       }
 
       const isExcel =

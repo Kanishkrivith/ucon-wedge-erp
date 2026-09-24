@@ -112,6 +112,43 @@ function normalizeDate(raw: string | null): string | null {
   return cleaned;
 }
 
+function normalizeGstin(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  let s = String(raw).replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+  if (s.length < 15) return null;
+  s = s.slice(0, 15);
+
+  const state = s.slice(0, 2);
+  let pan = s.slice(2, 12).split('');
+  let entity = s[12];
+  let z = s[13];
+  let check = s[14];
+
+  const numToLetter: Record<string, string> = { '0': 'O', '1': 'I', '2': 'Z', '5': 'S', '8': 'B' };
+  for (let i = 0; i < 5; i++) {
+    if (numToLetter[pan[i]]) {
+      pan[i] = numToLetter[pan[i]];
+    }
+  }
+
+  const letterToNum: Record<string, string> = { 'O': '0', 'D': '0', 'I': '1', 'L': '1', 'Z': '2', 'S': '5', 'B': '8' };
+  for (let i = 5; i < 9; i++) {
+    if (letterToNum[pan[i]]) {
+      pan[i] = letterToNum[pan[i]];
+    }
+  }
+
+  if (numToLetter[pan[9]]) {
+    pan[9] = numToLetter[pan[9]];
+  }
+
+  if (z === '7' || z === '1' || z === '2') {
+    z = 'Z';
+  }
+
+  return state + pan.join('') + entity + z + check;
+}
+
 // 35 known historical vendors from Section 7, 10, 12, 18, 19, 22, 23, 26, 28, 73
 const KNOWN_VENDORS = [
   { name: 'Ace Micromatic Machine Tools', match: /ace\s*micromatic|micromatic\s*machine|ace\s*designers/i, defaultCategory: 'MACHINES & CAPEX', dest: 'MACHINES & CAPEX' },
@@ -239,20 +276,33 @@ function extractFields(text: string, filenameHint?: string): DocumentAIField[] {
     addField('vendor_name', 'VENDOR NAME', rawVendor, rawVendor, 0.70);
   }
 
-  // GSTIN & PAN
-  let gstin = findFirst(text, [
-    /(?:gstin|gst\s*no\.?)\s*[:.-]?\s*([0-9]{2}[0-9A-Za-z\s]{13,18})/i,
-    /\b([0-9]{2}\s*[A-Za-z]{5}\s*[0-9]{4}\s*[A-Za-z]\s*[0-9A-Za-z]\s*[Zz]\s*[0-9A-Za-z])\b/,
-    /\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z])\b/i,
-  ]);
-  if (gstin) {
-    gstin = gstin.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
-    if (gstin.length > 15) gstin = gstin.slice(0, 15);
+  // VENDOR GSTIN vs CUSTOMER GSTIN
+  const allGstRegex = /(?:gstin|gst\s*no\.?)?\s*[:.-]?\s*([0-9]{2}[0-9A-Za-z]{13})/gi;
+  const foundGstins: string[] = [];
+  let gm;
+  while ((gm = allGstRegex.exec(text)) !== null) {
+    const norm = normalizeGstin(gm[1]);
+    if (norm && !foundGstins.includes(norm)) {
+      foundGstins.push(norm);
+    }
   }
-  addField('gstin', 'GSTIN', gstin, gstin, 0.98);
 
-  const pan = findFirst(text, [/(?:pan\s*no\.?|pan)\s*[:.-]?\s*([A-Z]{5}[0-9]{4}[A-Z])/i, /\b([A-Z]{5}[0-9]{4}[A-Z])\b/i]) || (gstin && gstin.length === 15 ? gstin.slice(2, 12) : null);
+  const UCON_GSTIN = '33AAACU6685L1ZV';
+  let vendorGstin = foundGstins.find((g) => !g.startsWith('33AAACU')) || null;
+  let customerGstin = foundGstins.find((g) => g.startsWith('33AAACU')) || null;
+  if (!customerGstin && text.includes('UCON')) {
+    customerGstin = UCON_GSTIN;
+  }
+  if (!vendorGstin && foundGstins[0]) {
+    vendorGstin = foundGstins[0];
+  }
+
+  addField('vendor_gstin', 'VENDOR GSTIN', vendorGstin, vendorGstin, 0.98);
+  addField('gstin', 'GSTIN', vendorGstin, vendorGstin, 0.98);
+
+  const pan = vendorGstin && vendorGstin.length === 15 ? vendorGstin.slice(2, 12) : findFirst(text, [/(?:pan\s*no\.?|pan)\s*[:.-]?\s*([A-Z]{5}[0-9]{4}[A-Z])/i, /\b([A-Z]{5}[0-9]{4}[A-Z])\b/i]);
   addField('pan', 'PAN', pan, pan?.toUpperCase() || null, 0.95);
+  addField('customer_gstin', 'CUSTOMER GSTIN', customerGstin, customerGstin, 0.98);
 
   // INVOICE NUMBER / DOCUMENT NUMBER
   let docNo = findFirst(text, [
@@ -298,7 +348,7 @@ function extractFields(text: string, filenameHint?: string): DocumentAIField[] {
 
   // PO NUMBER & PO DATE
   let poNo = findFirst(text, [
-    /(?:purchase\s*ord[eo]r|\bp\.?o\.?\b)\s*(?:no\.?|number|#|ref\.?)?\s*[:.-]?\s*([A-Z0-9][A-Z0-9\/_\s-]{4,40}?)(?=\s+\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\s+tax|\s*$)/i,
+    /(?:purchase\s*ord[eo]r|\bp\.?o\.?\b)\s*(?:no\.?|number|#|ref\.?)?\s*[:.-]?\s*([A-Z0-9][A-Z0-9\/_\s-]{4,40}?)(?=\s+\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}|\s+terms|\s+place|\s+date|\s+tax|\s*$)/i,
     /(?:oR\.?\s*no\.?)\s*[:.-]?\s*([0-9A-Z\.-]+)/i,
     /(?:p\.?o\.?\s*#?)\s*[:.-]?\s*([A-Z0-9][A-Z0-9\/_-]{3,})/i,
   ]);
@@ -313,7 +363,7 @@ function extractFields(text: string, filenameHint?: string): DocumentAIField[] {
       return `USS/IND/LPO/${y1}-${y2}/CHN/${num}`;
     });
   }
-  addField('po_number', 'PO NUMBER', poNo, cleanPo || poNo, 0.90);
+  addField('po_number', 'PO NUMBER', poNo, cleanPo || poNo, 0.95);
 
   let poDate = findFirst(text, [
     /(?:purchase\s*ord[eo]r|\bp\.?o\.?\b)[^\n\r]*?\b(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})\b/i,
@@ -386,21 +436,39 @@ function extractFields(text: string, filenameHint?: string): DocumentAIField[] {
   addField('taxable_value', 'TAXABLE VALUE', subtotal, subtotalNum !== null ? String(subtotalNum) : null, 0.95);
 
   // CGST, SGST, IGST
-  const cgst = findFirst(text, [
-    /(?:total\s*cgst|cgst\s*amt|cgst\s*amount|cgst\s*rs\.?|cgst)\s*(?:@\s*\d+%?)?\s*[:.-]?\s*(?:rs\.?|₹)?\s*([0-9][0-9.,\s]*(?:\.[0-9]{2})?)/i,
+  let cgst = findFirst(text, [
+    /(?:total\s*cgst|cgst)[_:\s]*(?:@?\s*\d+(?:\.\d+)?\s*%)?\s*[:.-]?\s*(?:rs\.?|₹)?\s*([0-9][0-9.,]*(?:\.[0-9]{2})?)/i,
   ]);
-  const cgstNum = parseIndianMoney(cgst);
-  addField('cgst_amount', 'CGST AMOUNT', cgst, cgstNum !== null ? String(cgstNum) : '0', 0.88);
+  let cgstNum = parseIndianMoney(cgst);
 
-  const sgst = findFirst(text, [
-    /(?:total\s*sgst|sgst\s*amt|sgst\s*amount|sgst\s*rs\.?|sgst)\s*(?:@\s*\d+%?)?\s*[:.-]?\s*(?:rs\.?|₹)?\s*([0-9][0-9.,\s]*(?:\.[0-9]{2})?)/i,
+  let sgst = findFirst(text, [
+    /(?:total\s*sgst|sgst)[_:\s]*(?:@?\s*\d+(?:\.\d+)?\s*%)?\s*[:.-]?\s*(?:rs\.?|₹)?\s*([0-9][0-9.,]*(?:\.[0-9]{2})?)/i,
   ]);
-  const sgstNum = parseIndianMoney(sgst);
-  addField('sgst_amount', 'SGST AMOUNT', sgst, sgstNum !== null ? String(sgstNum) : '0', 0.88);
+  let sgstNum = parseIndianMoney(sgst);
+
+  if (cgstNum !== null && cgstNum <= 14 && /cgst[_:\s]*\d+(?:\.\d+)?\s*%/i.test(text)) {
+    cgstNum = sgstNum || null;
+    cgst = sgst || null;
+  }
+  if (sgstNum !== null && sgstNum <= 14 && /sgst[_:\s]*\d+(?:\.\d+)?\s*%/i.test(text)) {
+    sgstNum = cgstNum || null;
+    sgst = cgst || null;
+  }
+
+  if (cgstNum && (!sgstNum || sgstNum === 0) && /sgst[_:\s]*(?:9|\d)/i.test(text)) {
+    sgstNum = cgstNum;
+    sgst = cgst;
+  } else if (sgstNum && (!cgstNum || cgstNum === 0) && /cgst[_:\s]*(?:9|\d)/i.test(text)) {
+    cgstNum = sgstNum;
+    cgst = sgst;
+  }
+
+  addField('cgst_amount', 'CGST AMOUNT', cgst || (cgstNum ? String(cgstNum) : null), cgstNum !== null ? String(cgstNum) : '0', 0.88);
+  addField('sgst_amount', 'SGST AMOUNT', sgst || (sgstNum ? String(sgstNum) : null), sgstNum !== null ? String(sgstNum) : '0', 0.88);
 
   // TOTAL INVOICE AMOUNT
   let total = findFirst(text, [
-    /(?:total\s*invoice\s*val[uo]e?|grand\s*total|invoice\s*total|net\s*amount|total\s*value\s*in\s*figures|invoice\s*value)\s*[:.-]?\s*(?:rs\.?|₹)?\s*([0-9][0-9.,\s]*(?:\.[0-9]{2})?)/i,
+    /(?:total\s*invoice\s*val[uo]e?|grand\s*total|invoice\s*total|net\s*amount|total\s*value\s*in\s*figures|invoice\s*value|sub\s*total\s*w\/?\s*tax)\s*[:.-]?\s*(?:rs\.?|₹)?\s*([0-9][0-9.,\s]*(?:\.[0-9]{2})?)/i,
   ]);
   let totalNum = parseIndianMoney(total);
   if (!totalNum && /accurate\s*engineering/i.test(text) && text.includes('7,13,900')) {
@@ -408,6 +476,15 @@ function extractFields(text: string, filenameHint?: string): DocumentAIField[] {
   }
   if (!totalNum && /ace\s*micromatic/i.test(text) && text.includes('1,976,500')) {
     totalNum = 1976500;
+  }
+
+  if (!subtotalNum && totalNum && (cgstNum || sgstNum)) {
+    subtotalNum = Number((totalNum - ((cgstNum || 0) + (sgstNum || 0))).toFixed(2));
+    subtotal = String(subtotalNum);
+  }
+  if (!totalNum && subtotalNum && (cgstNum || sgstNum)) {
+    totalNum = Number((subtotalNum + (cgstNum || 0) + (sgstNum || 0)).toFixed(2));
+    total = String(totalNum);
   }
   addField('total_invoice_amount', 'TOTAL INVOICE AMOUNT', total, totalNum !== null ? String(totalNum) : null, 0.96);
 
@@ -487,12 +564,12 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
     }
 
     // Header & metadata rows to strictly exclude
-    if (/(?:gstin|pan\b|tel\b|email|cin\b|ifsc|bank|account|place\s*of\s*(?:supply|delivery)|dispatch\s*from|bill\s*to|ship\s*to|consignee|receiver|declaration|terms|total\s*invoice\s*val|total\s*tax|billing\s*no|outbound\s*delivery|sale\s*order\s*no|e-way\s*bill|regd\s*office|road|nagar|street|chennai|tamil\s*nadu|karnataka|bengaluru|purchase\s*ord[eo]r|reverse\s*charge|tax\s*payable|hypothecation|incoterms|transporter|mode\s*of\s*transport|vehicle\s*no|lr\s*no|amount\s*in\s*words|terms\s*&\s*conditions|section\s*31|cgst\s*act|supply\s*of\s*goods)/i.test(row)) {
+    if (/(?:gstin|pan\b|tel\b|email|cell\b|mobile\b|phone\b|contact\b|website\b|web\b|cin\b|ifsc|bank|account|place\s*of\s*(?:supply|delivery)|dispatch\s*from|bill\s*to|ship\s*to|consignee|receiver|declaration|terms|total\s*invoice\s*val|total\s*tax|billing\s*no|outbound\s*delivery|sale\s*order\s*no|e-way\s*bill|regd\s*office|road|nagar|street|chennai|tamil\s*nadu|karnataka|bengaluru|kottivakkam|adyar|padmanaba|purchase\s*ord[eo]r|reverse\s*charge|tax\s*payable|hypothecation|incoterms|transporter|mode\s*of\s*transport|vehicle\s*no|lr\s*no|amount\s*in\s*words|terms\s*&\s*conditions|section\s*31|cgst\s*act|supply\s*of\s*goods)/i.test(row)) {
       continue;
     }
 
     const hasPipe = row.includes('|');
-    const hasProductWords = /(?:cnc|lathe|machine|turning|machining|grinder|cutter|slot|slitting|chamfer|tapping|spindle|centre|center|kit|belt|saw|blade|tap|tool|holder|collet|carbide|insert|oil|grease|coolant|steel|bar|spring|circlip|packing\s*charges|maintenance|spare|service|labour)/i.test(row);
+    const hasProductWords = /(?:cnc|lathe|machine|turning|machining|grinder|cutter|slot|slitting|chamfer|tapping|spindle|centre|center|kit|belt|saw|blade|tap|tool|holder|collet|carbide|insert|oil|grease|coolant|steel|bar|spring|ring|wire|clip|circlip|bearing|fastener|packing\s*charges|maintenance|spare|service|labour)/i.test(row);
 
     if (!hasProductWords && !inTable) continue;
 
@@ -500,18 +577,18 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
     const hsnMatch = row.match(/\b(84581100|8432|8605|84\d{2,6}|85\d{2,6}|82\d{2,6}|72\d{2,6}|73\d{2,6})\b/);
     const extractedHsn = hsnMatch ? hsnMatch[1] : null;
 
-    // Monetary tokens in row
-    const moneyMatches = Array.from(row.matchAll(/(?:₹|rs\.?\s*)?([0-9]{1,3}(?:[.,][0-9]{3})*(?:\.[0-9]{2})|[0-9]{4,}\.?[0-9]*)/g)).map((m) => m[1]);
+    // Monetary & quantity tokens in row
+    const moneyMatches = Array.from(row.matchAll(/\b\d{1,3}(?:,\d{2,3})*(?:\.\d+)?\b|\b\d+(?:\.\d+)?\b/g)).map((m) => m[0]);
     const parsedAmounts = moneyMatches
       .map((m) => parseIndianMoney(m))
-      .filter((n): n is number => n !== null && n > 0 && n !== Number(extractedHsn) && n !== 8432 && n !== 84581100 && n !== 40209);
+      .filter((n): n is number => n !== null && n > 0 && n < 100000000 && !/^[6-9]\d{9}$/.test(String(n)) && n !== Number(extractedHsn) && n !== 8432 && n !== 84581100 && n !== 40209);
 
     if (parsedAmounts.length === 0 && !hasProductWords) continue;
 
     let desc = row;
     if (hasPipe) {
       const parts = row.split('|').map((p) => p.trim()).filter(Boolean);
-      const descPart = parts.find((p) => /(?:cnc|lathe|machine|cutting|slot|packing|tool|saw|tap|insert|bar|oil|spring)/i.test(p)) ||
+      const descPart = parts.find((p) => /(?:cnc|lathe|machine|cutting|slot|packing|tool|saw|tap|insert|bar|oil|spring|ring|wire)/i.test(p)) ||
                        parts.find((p) => /[a-zA-Z]{4,}/.test(p));
       if (descPart) {
         desc = descPart.replace(/\b(?:84|85|82|72|73)\d{4,6}\b.*$/, '').trim();
@@ -522,7 +599,7 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
     // Continuation line check
     if (i + 1 < rows.length) {
       const nextRow = rows[i + 1];
-      if (/(?:sno|serial|model|part|rev|spec|lm|auto\s*cycle|hydraulic|wydraulic)/i.test(nextRow) &&
+      if (/(?:sno|serial|model|part|rev|spec|lm|auto\s*cycle|hydraulic|wydraulic|wire|ring|sp\.?st|noc)/i.test(nextRow) &&
           !/(?:tax|gst|amount|total|purchase|order|bank|terms|declaration|total\s*value)/i.test(nextRow)) {
         let cleanNext = nextRow.replace(/[\|\(\)\{\}\[\]"']/g, ' ').replace(/\s+/g, ' ').trim();
         cleanNext = cleanNext.replace(/^[a-z0-9]{1,3}\s+/i, '');
@@ -550,10 +627,10 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
 
     // Extract Quantity and Unit
     let quantity = 1;
-    const qtyMatch = row.match(/\b([0-9]{1,4}(?:\.[0-9]+)?)\s*[{|\[\(\s]*(?:nos?|pcs?|pieces?|ea|set|kg|kgs?|mm|m|mtrs?|barrels?)?\b/i);
+    const qtyMatch = row.match(/\b([0-9]{1,7}(?:\.[0-9]+)?)\s*[{|\[\(\s]*(?:nos?|pcs?|pieces?|ea|set|kg|kgs?|mm|m|mtrs?|barrels?)?\b/i);
     if (qtyMatch) {
       const q = Number(qtyMatch[1]);
-      if (q > 0 && q < 10000 && q !== 8432 && q !== 8458 && q !== 40209) {
+      if (q > 0 && q < 1000000 && q !== 8432 && q !== 8458 && q !== 40209) {
         quantity = Math.floor(q);
       }
     }
@@ -599,12 +676,64 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
       taxAmount = 301500.00;
       totalAmount = 1976500.00;
     } else {
-      if (parsedAmounts.length >= 2) {
-        totalAmount = Math.max(...parsedAmounts);
-        taxableAmount = parsedAmounts.find((a) => a < (totalAmount || 0) && a > (totalAmount || 0) * 0.7) || parsedAmounts[0];
-        taxAmount = (totalAmount || 0) - (taxableAmount || 0);
-      } else if (parsedAmounts.length === 1) {
-        taxableAmount = parsedAmounts[0];
+      let bestMatch: { qty: number; rate: number; taxable: number } | null = null;
+
+      // Pipe-delimited tabular column extraction (e.g. desc | rate | amount)
+      if (hasPipe) {
+        const parts = row.split('|').map((p) => p.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const lastPart = parts[parts.length - 1];
+          const secondLast = parts[parts.length - 2];
+          const pTaxable = parseIndianMoney(lastPart);
+          let pRate = parseIndianMoney(secondLast);
+          if (secondLast.startsWith('0') && !secondLast.includes('.') && pRate && pRate > 0) {
+            pRate = pRate / 100;
+          }
+          if (pTaxable && pTaxable > 0 && pRate && pRate > 0) {
+            taxableAmount = pTaxable;
+            quantity = Math.round(pTaxable / pRate);
+            bestMatch = { qty: quantity, rate: pRate, taxable: pTaxable };
+          }
+        }
+      }
+
+      // Mathematical consistency check: does x * y = z?
+      if (!bestMatch) {
+        for (let j = 0; j < parsedAmounts.length; j++) {
+          for (let k = 0; k < parsedAmounts.length; k++) {
+            if (j === k) continue;
+            const x = parsedAmounts[j];
+            const y = parsedAmounts[k];
+            if (x === 1 || y === 1) continue; // Skip trivial 1 * x = x
+            const prod = x * y;
+            const matchZ = parsedAmounts.find((z, idx) => idx !== j && idx !== k && Math.abs(z - prod) < Math.max(1.0, prod * 0.01));
+            if (matchZ !== undefined) {
+              if (!bestMatch || matchZ > bestMatch.taxable) {
+                bestMatch = {
+                  qty: Math.max(x, y),
+                  rate: Math.min(x, y),
+                  taxable: matchZ,
+                };
+              }
+            }
+          }
+        }
+      }
+
+      if (bestMatch) {
+        quantity = bestMatch.qty;
+        taxableAmount = bestMatch.taxable;
+      } else {
+        if (parsedAmounts.length >= 2) {
+          totalAmount = Math.max(...parsedAmounts);
+          taxableAmount = parsedAmounts.find((a) => a < (totalAmount || 0) && a > (totalAmount || 0) * 0.7) || parsedAmounts[0];
+          taxAmount = (totalAmount || 0) - (taxableAmount || 0);
+        } else if (parsedAmounts.length === 1) {
+          taxableAmount = parsedAmounts[0];
+        }
+      }
+
+      if (taxableAmount && !totalAmount) {
         taxAmount = Number(((taxableAmount * (taxRate || 18)) / 100).toFixed(2));
         totalAmount = Number((taxableAmount + taxAmount).toFixed(2));
       }
@@ -718,14 +847,16 @@ export async function processDocumentOCR(filePath: string, mimeType: string): Pr
       if (digitalCharsTotal < 30) {
         pages.length = 0; // Clear any partial entries
         const { createCanvas } = await import('@napi-rs/canvas');
-        const cachePath = path.join(os.tmpdir(), 'tesseract-cache');
-        worker = await createWorker('eng', 1, { cachePath });
+        const fsSync = await import('node:fs');
+        const pubLang = path.join(process.cwd(), 'public');
+        const langPath = fsSync.existsSync(path.join(pubLang, 'eng.traineddata.gz')) ? pubLang : process.cwd();
+        worker = await createWorker('eng', 1, { langPath, cachePath: langPath });
 
         const ocrPages = Math.min(pdf.numPages, 2);
         for (let pageNo = 1; pageNo <= ocrPages; pageNo += 1) {
           try {
             const page = await pdf.getPage(pageNo);
-            const viewport = page.getViewport({ scale: 2.0 }); // High-precision 150-200 DPI for sharp tabular OCR
+            const viewport = page.getViewport({ scale: 1.5 }); // High-precision 150 DPI for sharp tabular OCR in ~2.2s
             const canvas = createCanvas(viewport.width, viewport.height);
             const context = canvas.getContext('2d');
             await page.render({ canvasContext: context, viewport } as any).promise;
@@ -739,8 +870,10 @@ export async function processDocumentOCR(filePath: string, mimeType: string): Pr
       }
     } else {
       // Direct image file OCR (JPG / PNG)
-      const cachePath = path.join(os.tmpdir(), 'tesseract-cache');
-      worker = await createWorker('eng', 1, { cachePath });
+      const fsSync = await import('node:fs');
+      const pubLang = path.join(process.cwd(), 'public');
+      const langPath = fsSync.existsSync(path.join(pubLang, 'eng.traineddata.gz')) ? pubLang : process.cwd();
+      worker = await createWorker('eng', 1, { langPath, cachePath: langPath });
       const result = await worker.recognize(filePath);
       pages.push({ pageNo: 1, text: result.data.text || '' });
     }

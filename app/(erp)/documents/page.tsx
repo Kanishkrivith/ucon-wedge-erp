@@ -591,7 +591,26 @@ export default function DocumentsPage() {
                             {d.status}
                           </span>
                         </td>
-                        <td style={{ textAlign: 'center' }}>
+                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <a
+                            href={`/api/documents/export?id=${d.id}`}
+                            download
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              display: 'inline-block',
+                              padding: '3px 8px',
+                              fontSize: 11,
+                              marginRight: 4,
+                              background: '#ecfdf5',
+                              color: '#047857',
+                              borderRadius: 4,
+                              border: '1px solid #a7f3d0',
+                              textDecoration: 'none',
+                            }}
+                            title="Download Single Excel (.xlsx) with Canonical Fields & Lines"
+                          >
+                            📊
+                          </a>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -662,6 +681,26 @@ export default function DocumentsPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <a
+                href={`/api/documents/export?id=${selected.id}`}
+                download
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  padding: '7px 14px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  borderRadius: 6,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                }}
+                title="Download Single Excel with Canonical Fields & Line Classification"
+              >
+                📥 Export to Single Excel (.xlsx)
+              </a>
               <button
                 type="button"
                 className="ghost"

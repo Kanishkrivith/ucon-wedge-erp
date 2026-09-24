@@ -909,6 +909,16 @@ export function resolveCanonicalCategory(desc: string, currentCategory?: string)
     };
   }
 
+  if (/SPRING|RING|CIRCLIP|WIRE\s*RING/i.test(text)) {
+    return {
+      groupName: 'M. SPRING AND ASSEMBLY',
+      subCategory: 'SPRING RING',
+      destinationModule: 'CONSUMABLES',
+      costingHead: 'SPRING',
+      capexOrOpex: 'OPEX',
+    };
+  }
+
   return {
     groupName: 'U. PROFESSIONAL AND OTHER SERVICES',
     subCategory: 'OTHER OPERATING EXPENSE',
