@@ -813,55 +813,44 @@ export async function processDocumentOCR(filePath: string, mimeType: string): Pr
 
   try {
     if (isPdf) {
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      const data = new Uint8Array(await fs.readFile(filePath));
-      const loadingTask = pdfjsLib.getDocument({
-        data,
-        useSystemFonts: true,
-        disableFontFace: true,
-      });
-      const pdf = await loadingTask.promise;
-      const pageLimit = Math.min(pdf.numPages, 3);
+      const { extractText, renderPageAsImage } = await import('unpdf');
+      const fileBuffer = await fs.readFile(filePath);
 
       // Fast-Path: Extract digital text directly from PDF in milliseconds
       let digitalCharsTotal = 0;
-      for (let pageNo = 1; pageNo <= pageLimit; pageNo += 1) {
-        try {
-          const page = await pdf.getPage(pageNo);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .map((item: any) => item.str || '')
-            .join(' ')
-            .replace(/\s+/g, ' ')
-            .trim();
+      let totalPages = 1;
+
+      try {
+        const digital = await extractText(new Uint8Array(fileBuffer), { mergePages: false });
+        totalPages = digital.totalPages || digital.text?.length || 1;
+        const pageLimit = Math.min(totalPages, 3);
+        for (let i = 0; i < pageLimit; i++) {
+          const pageText = (digital.text[i] || '').trim();
           if (pageText.length > 20) {
             digitalCharsTotal += pageText.length;
-            pages.push({ pageNo, text: pageText });
+            pages.push({ pageNo: i + 1, text: pageText });
           }
-        } catch (digitalErr) {
-          console.warn(`Digital text read failed on page ${pageNo}:`, digitalErr);
         }
+      } catch (digitalErr) {
+        console.warn('Digital text extraction warning:', digitalErr);
       }
 
       // If no digital text found (e.g. scanned photocopy), fallback to raster OCR
       if (digitalCharsTotal < 30) {
         pages.length = 0; // Clear any partial entries
-        const { createCanvas } = await import('@napi-rs/canvas');
         const fsSync = await import('node:fs');
         const pubLang = path.join(process.cwd(), 'public');
         const langPath = fsSync.existsSync(path.join(pubLang, 'eng.traineddata.gz')) ? pubLang : process.cwd();
         worker = await createWorker('eng', 1, { langPath, cachePath: langPath });
 
-        const ocrPages = Math.min(pdf.numPages, 2);
+        const ocrPages = Math.min(totalPages, 2);
         for (let pageNo = 1; pageNo <= ocrPages; pageNo += 1) {
           try {
-            const page = await pdf.getPage(pageNo);
-            const viewport = page.getViewport({ scale: 1.5 }); // High-precision 150 DPI for sharp tabular OCR in ~2.2s
-            const canvas = createCanvas(viewport.width, viewport.height);
-            const context = canvas.getContext('2d');
-            await page.render({ canvasContext: context, viewport } as any).promise;
-            const imgBuffer = canvas.toBuffer('image/png');
-            const result = await worker.recognize(imgBuffer);
+            const imgBuffer = await renderPageAsImage(new Uint8Array(fileBuffer), pageNo, {
+              scale: 1.5,
+              canvasImport: () => import('@napi-rs/canvas'),
+            });
+            const result = await worker.recognize(Buffer.from(imgBuffer));
             pages.push({ pageNo, text: result.data.text || '' });
           } catch (pageErr) {
             console.warn(`Error on OCR page ${pageNo}:`, pageErr);
