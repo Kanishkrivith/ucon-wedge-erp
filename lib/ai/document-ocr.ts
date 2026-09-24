@@ -241,13 +241,17 @@ function extractFields(text: string, filenameHint?: string): DocumentAIField[] {
 
   // GSTIN & PAN
   let gstin = findFirst(text, [
+    /(?:gstin|gst\s*no\.?)\s*[:.-]?\s*([0-9]{2}[0-9A-Za-z\s]{13,18})/i,
+    /\b([0-9]{2}\s*[A-Za-z]{5}\s*[0-9]{4}\s*[A-Za-z]\s*[0-9A-Za-z]\s*[Zz]\s*[0-9A-Za-z])\b/,
     /\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z])\b/i,
-    /(?:gstin|gst\s*no\.?)\s*[:.-]?\s*([0-9A-Z\s]{15,18})/i,
   ]);
-  if (gstin) gstin = gstin.replace(/\s+/g, '').toUpperCase();
+  if (gstin) {
+    gstin = gstin.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+    if (gstin.length > 15) gstin = gstin.slice(0, 15);
+  }
   addField('gstin', 'GSTIN', gstin, gstin, 0.98);
 
-  const pan = findFirst(text, [/\b([A-Z]{5}[0-9]{4}[A-Z])\b/i]);
+  const pan = findFirst(text, [/(?:pan\s*no\.?|pan)\s*[:.-]?\s*([A-Z]{5}[0-9]{4}[A-Z])/i, /\b([A-Z]{5}[0-9]{4}[A-Z])\b/i]) || (gstin && gstin.length === 15 ? gstin.slice(2, 12) : null);
   addField('pan', 'PAN', pan, pan?.toUpperCase() || null, 0.95);
 
   // INVOICE NUMBER / DOCUMENT NUMBER
@@ -721,7 +725,7 @@ export async function processDocumentOCR(filePath: string, mimeType: string): Pr
         for (let pageNo = 1; pageNo <= ocrPages; pageNo += 1) {
           try {
             const page = await pdf.getPage(pageNo);
-            const viewport = page.getViewport({ scale: 1.0 }); // Fast 1.0 scale
+            const viewport = page.getViewport({ scale: 2.0 }); // High-precision 150-200 DPI for sharp tabular OCR
             const canvas = createCanvas(viewport.width, viewport.height);
             const context = canvas.getContext('2d');
             await page.render({ canvasContext: context, viewport } as any).promise;

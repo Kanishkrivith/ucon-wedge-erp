@@ -285,7 +285,8 @@ export async function POST(req: Request) {
         for (const p of ocrResult.pages) {
           await pool.query(
             `INSERT INTO document_pages (document_id, page_no, ocr_text)
-             VALUES ($1, $2, $3)`,
+             VALUES ($1, $2, $3)
+             ON CONFLICT (document_id, page_no) DO UPDATE SET ocr_text = EXCLUDED.ocr_text`,
             [docId, p.pageNo, p.text]
           );
         }
