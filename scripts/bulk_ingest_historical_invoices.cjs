@@ -139,7 +139,7 @@ async function main() {
         let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${extracted.vendor_name}%`]);
         if (!vRes.rows[0]) {
           const newV = await pool.query(
-            `INSERT INTO vendors (canonical_name, category, gstin) VALUES ($1, 'SUBCONTRACT', $2) RETURNING id`,
+            `INSERT INTO vendors (canonical_name, category, gstin, active) VALUES ($1, 'SUBCONTRACT', $2, true) RETURNING id`,
             [extracted.vendor_name, extracted.vendor_gstin || null]
           );
           vendorId = newV.rows[0].id;
@@ -147,6 +147,17 @@ async function main() {
           vendorId = vRes.rows[0].id;
         }
       }
+
+      let docTypeEnum = 'INVOICE';
+      const rawType = String(extracted.document_type || '').toUpperCase();
+      if (rawType.includes('DC') || rawType.includes('CHALLAN')) docTypeEnum = 'DC';
+      else if (rawType.includes('PO') || rawType.includes('ORDER')) docTypeEnum = 'PO';
+      else if (rawType.includes('QUOTE')) docTypeEnum = 'QUOTATION';
+      else if (rawType.includes('MACHINE')) docTypeEnum = 'MACHINE_INVOICE';
+      else if (rawType.includes('TOOL')) docTypeEnum = 'TOOL_INVOICE';
+      else if (rawType.includes('MTC')) docTypeEnum = 'MTC';
+      else if (rawType.includes('TEST')) docTypeEnum = 'TEST_REPORT';
+      else if (rawType.includes('EXPENSE')) docTypeEnum = 'EXPENSE';
 
       // Insert document record
       const docRes = await pool.query(
@@ -158,7 +169,7 @@ async function main() {
         RETURNING id`,
         [
           baseName,
-          (extracted.document_type || 'INVOICE').toUpperCase(),
+          docTypeEnum,
           `local://historical/${baseName}`,
           file,
           buf.length,
