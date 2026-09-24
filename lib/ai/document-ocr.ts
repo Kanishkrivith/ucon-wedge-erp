@@ -673,16 +673,14 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
 }
 
 export async function processDocumentOCR(filePath: string, mimeType: string): Promise<DocumentAIResult> {
-  const cachePath = path.join(os.tmpdir(), 'tesseract-cache');
-  const worker = await createWorker('eng', 1, { cachePath });
   const pages: DocumentAIResult['pages'] = [];
+  const isPdf = mimeType === 'application/pdf' || path.extname(filePath).toLowerCase() === '.pdf';
+
+  let worker: any = null;
 
   try {
-    const isPdf = mimeType === 'application/pdf' || path.extname(filePath).toLowerCase() === '.pdf';
-
     if (isPdf) {
       const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      const { createCanvas } = await import('@napi-rs/canvas');
       const data = new Uint8Array(await fs.readFile(filePath));
       const loadingTask = pdfjsLib.getDocument({
         data,
@@ -690,28 +688,62 @@ export async function processDocumentOCR(filePath: string, mimeType: string): Pr
         disableFontFace: true,
       });
       const pdf = await loadingTask.promise;
-      const pageLimit = Math.min(pdf.numPages, 10);
+      const pageLimit = Math.min(pdf.numPages, 3);
 
+      // Fast-Path: Extract digital text directly from PDF in milliseconds
+      let digitalCharsTotal = 0;
       for (let pageNo = 1; pageNo <= pageLimit; pageNo += 1) {
         try {
           const page = await pdf.getPage(pageNo);
-          const viewport = page.getViewport({ scale: 1.5 });
-          const canvas = createCanvas(viewport.width, viewport.height);
-          const context = canvas.getContext('2d');
-          await page.render({ canvasContext: context, viewport } as any).promise;
-          const imgBuffer = canvas.toBuffer('image/png');
-          const result = await worker.recognize(imgBuffer);
-          pages.push({ pageNo, text: result.data.text || '' });
-        } catch (pageErr) {
-          console.warn(`Error on page ${pageNo}:`, pageErr);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: any) => item.str || '')
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (pageText.length > 20) {
+            digitalCharsTotal += pageText.length;
+            pages.push({ pageNo, text: pageText });
+          }
+        } catch (digitalErr) {
+          console.warn(`Digital text read failed on page ${pageNo}:`, digitalErr);
+        }
+      }
+
+      // If no digital text found (e.g. scanned photocopy), fallback to raster OCR
+      if (digitalCharsTotal < 30) {
+        pages.length = 0; // Clear any partial entries
+        const { createCanvas } = await import('@napi-rs/canvas');
+        const cachePath = path.join(os.tmpdir(), 'tesseract-cache');
+        worker = await createWorker('eng', 1, { cachePath });
+
+        const ocrPages = Math.min(pdf.numPages, 2);
+        for (let pageNo = 1; pageNo <= ocrPages; pageNo += 1) {
+          try {
+            const page = await pdf.getPage(pageNo);
+            const viewport = page.getViewport({ scale: 1.0 }); // Fast 1.0 scale
+            const canvas = createCanvas(viewport.width, viewport.height);
+            const context = canvas.getContext('2d');
+            await page.render({ canvasContext: context, viewport } as any).promise;
+            const imgBuffer = canvas.toBuffer('image/png');
+            const result = await worker.recognize(imgBuffer);
+            pages.push({ pageNo, text: result.data.text || '' });
+          } catch (pageErr) {
+            console.warn(`Error on OCR page ${pageNo}:`, pageErr);
+          }
         }
       }
     } else {
+      // Direct image file OCR (JPG / PNG)
+      const cachePath = path.join(os.tmpdir(), 'tesseract-cache');
+      worker = await createWorker('eng', 1, { cachePath });
       const result = await worker.recognize(filePath);
       pages.push({ pageNo: 1, text: result.data.text || '' });
     }
   } finally {
-    await worker.terminate();
+    if (worker) {
+      await worker.terminate().catch(() => {});
+    }
   }
 
   const fullText = pages.map((p) => p.text).join('\n');

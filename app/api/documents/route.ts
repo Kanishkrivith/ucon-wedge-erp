@@ -10,6 +10,9 @@ import { processExcelDocument } from '@/lib/ai/excel-document-parser';
 
 const json = NextResponse.json;
 
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 function getStorageRoot(): string {
   if (process.env.STORAGE_DIR) {
     return process.env.STORAGE_DIR;

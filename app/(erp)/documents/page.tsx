@@ -294,7 +294,14 @@ export default function DocumentsPage() {
         method: 'POST',
         body: fd,
       });
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        data = { error: text || `Server returned status ${res.status}` };
+      }
       if (!res.ok) {
         setMessage(`Upload error: ${data.error || 'Failed to upload'}`);
       } else {
