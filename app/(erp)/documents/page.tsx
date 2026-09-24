@@ -440,9 +440,31 @@ export default function DocumentsPage() {
             Canonical extractions strictly conform to Master Library Groups A–V. Missing data is flagged <b>NOT AVAILABLE / NEEDS REVIEW</b> without synthetic hallucination. Final ERP posting requires human verification.
           </p>
         </div>
-        <button className="ghost" onClick={load} style={{ fontSize: 12, padding: '6px 14px' }}>
-          ↻ Refresh Queue
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <a
+            href="/templates/UCON_WEDGE_MASTER_CANONICAL_AND_ROUTING_LIBRARY.xlsx"
+            download="UCON_WEDGE_MASTER_CANONICAL_AND_ROUTING_LIBRARY.xlsx"
+            style={{
+              fontSize: 12,
+              padding: '7px 14px',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 700,
+              backgroundColor: '#0f766e',
+              color: '#ffffff',
+              borderRadius: 6,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+            }}
+            title="Download Master Canonical Fields, Line Classification & Routing Library Excel"
+          >
+            📊 Download Canonical &amp; Routing Library (.xlsx)
+          </a>
+          <button className="ghost" onClick={load} style={{ fontSize: 12, padding: '6px 14px' }}>
+            ↻ Refresh Queue
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
