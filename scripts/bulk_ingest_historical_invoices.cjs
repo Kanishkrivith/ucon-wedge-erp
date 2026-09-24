@@ -133,14 +133,47 @@ async function main() {
       const extracted = await callGemini(apiKey, b64, PROMPT);
       const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
+      const hdr = extracted.header || extracted.invoice_header || extracted;
+      const rawLines = Array.isArray(extracted.lines)
+        ? extracted.lines
+        : Array.isArray(extracted.line_items)
+        ? extracted.line_items
+        : Array.isArray(extracted.items)
+        ? extracted.items
+        : Array.isArray(extracted.invoice_items)
+        ? extracted.invoice_items
+        : Array.isArray(hdr.lines)
+        ? hdr.lines
+        : Array.isArray(hdr.line_items)
+        ? hdr.line_items
+        : Array.isArray(hdr.items)
+        ? hdr.items
+        : [];
+
+      const vendorName = extracted.vendor_name || extracted.supplier_name || hdr.vendor_name || hdr.supplier_name;
+      const vendorGstin = extracted.vendor_gstin || extracted.gstin || extracted.supplier_gstin || hdr.vendor_gstin || hdr.gstin || hdr.supplier_gstin;
+      const vendorPan = extracted.vendor_pan || extracted.pan || hdr.vendor_pan || hdr.pan || (vendorGstin ? String(vendorGstin).substring(2, 12) : null);
+      const invoiceNum = extracted.invoice_number || extracted.document_number || hdr.invoice_number || hdr.document_number || baseName;
+      const invoiceDate = extracted.document_date || extracted.invoice_date || hdr.document_date || hdr.invoice_date;
+      const custName = extracted.customer_name || extracted.buyer_name || hdr.customer_name || hdr.buyer_name || 'UCON PT STRUCTURAL SYSTEM PRIVATE LIMITED';
+      const custGstin = extracted.customer_gstin || extracted.buyer_gstin || hdr.customer_gstin || hdr.buyer_gstin || '33AAACU6685L1ZV';
+      const poNum = extracted.po_number || hdr.po_number;
+      const dcNum = extracted.dc_number || hdr.dc_number;
+      const taxableVal = extracted.taxable_value ?? extracted.taxable_amount ?? hdr.taxable_value ?? hdr.taxable_amount;
+      const cgstVal = extracted.cgst_amount ?? hdr.cgst_amount;
+      const sgstVal = extracted.sgst_amount ?? hdr.sgst_amount;
+      const igstVal = extracted.igst_amount ?? hdr.igst_amount;
+      const totalTax = extracted.total_tax_amount ?? hdr.total_tax_amount ?? (Number(cgstVal || 0) + Number(sgstVal || 0) + Number(igstVal || 0));
+      const totalInv = extracted.total_invoice_amount ?? extracted.total_amount ?? hdr.total_invoice_amount ?? hdr.total_amount;
+
       // Vendor handling
       let vendorId = null;
-      if (extracted.vendor_name) {
-        let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${extracted.vendor_name}%`]);
+      if (vendorName) {
+        let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${vendorName}%`]);
         if (!vRes.rows[0]) {
           const newV = await pool.query(
             `INSERT INTO vendors (canonical_name, category, gstin, active) VALUES ($1, 'SUBCONTRACT', $2, true) RETURNING id`,
-            [extracted.vendor_name, extracted.vendor_gstin || null]
+            [vendorName, vendorGstin || null]
           );
           vendorId = newV.rows[0].id;
         } else {
@@ -149,7 +182,7 @@ async function main() {
       }
 
       let docTypeEnum = 'INVOICE';
-      const rawType = String(extracted.document_type || '').toUpperCase();
+      const rawType = String(extracted.document_type || hdr.document_type || '').toUpperCase();
       if (rawType.includes('DC') || rawType.includes('CHALLAN')) docTypeEnum = 'DC';
       else if (rawType.includes('PO') || rawType.includes('ORDER')) docTypeEnum = 'PO';
       else if (rawType.includes('QUOTE')) docTypeEnum = 'QUOTATION';
@@ -174,12 +207,12 @@ async function main() {
           file,
           buf.length,
           hash,
-          extracted.invoice_number || extracted.document_number || baseName,
-          extracted.document_date || null,
+          invoiceNum,
+          invoiceDate || null,
           vendorId,
           b64,
-          extracted.lines?.[0]?.category_code || 'GENERAL',
-          extracted.lines?.[0]?.destination_module || 'PURCHASE'
+          rawLines[0]?.category_code || 'A. RAW MATERIAL',
+          rawLines[0]?.destination_module || 'PURCHASE'
         ]
       );
 
@@ -187,24 +220,24 @@ async function main() {
 
       // Insert Canonical Header Fields
       const headerFields = [
-        ['document_type', 'DOCUMENT TYPE', extracted.document_type || 'INVOICE'],
-        ['invoice_number', 'INVOICE NUMBER', extracted.invoice_number || extracted.document_number],
-        ['document_number', 'DOCUMENT NUMBER', extracted.document_number || extracted.invoice_number],
-        ['document_date', 'DOCUMENT DATE', extracted.document_date],
-        ['vendor_name', 'VENDOR NAME', extracted.vendor_name],
-        ['vendor_gstin', 'VENDOR GSTIN', extracted.vendor_gstin],
-        ['gstin', 'GSTIN', extracted.vendor_gstin],
-        ['pan', 'PAN', extracted.vendor_pan],
-        ['customer_name', 'CUSTOMER NAME', extracted.customer_name || 'UCON PT STRUCTURAL SYSTEM PRIVATE LIMITED'],
-        ['customer_gstin', 'CUSTOMER GSTIN', extracted.customer_gstin || '33AAACU6685L1ZV'],
-        ['po_number', 'PO NUMBER', extracted.po_number],
-        ['dc_number', 'DC NUMBER', extracted.dc_number],
-        ['taxable_value', 'TAXABLE VALUE', extracted.taxable_value !== undefined ? String(extracted.taxable_value) : null],
-        ['cgst_amount', 'CGST AMOUNT', extracted.cgst_amount !== undefined ? String(extracted.cgst_amount) : null],
-        ['sgst_amount', 'SGST AMOUNT', extracted.sgst_amount !== undefined ? String(extracted.sgst_amount) : null],
-        ['igst_amount', 'IGST AMOUNT', extracted.igst_amount !== undefined ? String(extracted.igst_amount) : null],
-        ['total_tax_amount', 'GST TOTAL', extracted.total_tax_amount !== undefined ? String(extracted.total_tax_amount) : null],
-        ['total_invoice_amount', 'TOTAL INVOICE AMOUNT', extracted.total_invoice_amount !== undefined ? String(extracted.total_invoice_amount) : null]
+        ['document_type', 'DOCUMENT TYPE', docTypeEnum],
+        ['invoice_number', 'INVOICE NUMBER', invoiceNum],
+        ['document_number', 'DOCUMENT NUMBER', invoiceNum],
+        ['document_date', 'DOCUMENT DATE', invoiceDate],
+        ['vendor_name', 'VENDOR NAME', vendorName],
+        ['vendor_gstin', 'VENDOR GSTIN', vendorGstin],
+        ['gstin', 'GSTIN', vendorGstin],
+        ['pan', 'PAN', vendorPan],
+        ['customer_name', 'CUSTOMER NAME', custName],
+        ['customer_gstin', 'CUSTOMER GSTIN', custGstin],
+        ['po_number', 'PO NUMBER', poNum],
+        ['dc_number', 'DC NUMBER', dcNum],
+        ['taxable_value', 'TAXABLE VALUE', taxableVal !== undefined && taxableVal !== null ? String(taxableVal) : null],
+        ['cgst_amount', 'CGST AMOUNT', cgstVal !== undefined && cgstVal !== null ? String(cgstVal) : null],
+        ['sgst_amount', 'SGST AMOUNT', sgstVal !== undefined && sgstVal !== null ? String(sgstVal) : null],
+        ['igst_amount', 'IGST AMOUNT', igstVal !== undefined && igstVal !== null ? String(igstVal) : null],
+        ['total_tax_amount', 'GST TOTAL', totalTax !== undefined && totalTax !== null ? String(totalTax) : null],
+        ['total_invoice_amount', 'TOTAL INVOICE AMOUNT', totalInv !== undefined && totalInv !== null ? String(totalInv) : null]
       ];
 
       for (const [code, label, val] of headerFields) {
@@ -218,9 +251,38 @@ async function main() {
       }
 
       // Insert Line Items
-      const lines = Array.isArray(extracted.lines) ? extracted.lines : [];
-      for (let j = 0; j < lines.length; j++) {
-        const l = lines[j];
+      for (let j = 0; j < rawLines.length; j++) {
+        const l = rawLines[j];
+        const desc = l.description || `Line item ${j + 1}`;
+        const qty = Number(l.quantity) || 1;
+        const rate = Number(l.unit_rate) || 0;
+        const discount = Number(l.discount) || 0;
+        const taxable = l.taxable_amount !== undefined && l.taxable_amount !== null ? Number(l.taxable_amount) : Math.max(0, qty * rate - discount);
+        const taxRate = Number(l.tax_rate) || 18;
+        const cgst = Number(l.cgst_amount) || 0;
+        const sgst = Number(l.sgst_amount) || 0;
+        const igst = Number(l.igst_amount) || 0;
+        const lineTax = l.tax_amount !== undefined && l.tax_amount !== null ? Number(l.tax_amount) : (cgst + sgst + igst);
+        const lineTotal = l.total_amount !== undefined && l.total_amount !== null ? Number(l.total_amount) : (taxable + lineTax);
+
+        // Simple intelligent category matcher
+        let catCode = l.category_code || 'A. RAW MATERIAL';
+        let destMod = l.destination_module || 'PURCHASE';
+        const dLower = desc.toLowerCase();
+        if (dLower.includes('tap') || dLower.includes('insert') || dLower.includes('cutter') || dLower.includes('tool')) {
+          catCode = 'C. TOOLING AND INSERTS';
+          destMod = 'TOOLING';
+        } else if (dLower.includes('spring') || dLower.includes('ring') || dLower.includes('wire') || dLower.includes('coolant') || dLower.includes('oil')) {
+          catCode = 'M. SPRING AND ASSEMBLY';
+          destMod = 'CONSUMABLES';
+        } else if (dLower.includes('postage') || dLower.includes('courier') || dLower.includes('transport') || dLower.includes('freight')) {
+          catCode = 'O. TRANSPORT AND LOGISTICS';
+          destMod = 'PURCHASE';
+        } else if (dLower.includes('machine') || dLower.includes('lathe') || dLower.includes('cnc')) {
+          catCode = 'B. CNC MACHINES AND CAPITAL EQUIPMENT';
+          destMod = 'MACHINES & CAPEX';
+        }
+
         await pool.query(
           `INSERT INTO document_line_items (
             document_id, line_no, description, part_number, hsn_code,
@@ -231,27 +293,27 @@ async function main() {
           [
             docId,
             j + 1,
-            l.description || 'Line item',
+            desc,
             l.part_number || '',
             l.hsn_code || '',
-            Number(l.quantity) || 1,
-            l.unit || 'NOS',
-            Number(l.unit_rate) || 0,
-            Number(l.discount) || 0,
-            Number(l.taxable_amount) || 0,
-            Number(l.tax_rate) || 18,
-            Number(l.cgst_amount) || 0,
-            Number(l.sgst_amount) || 0,
-            Number(l.igst_amount) || 0,
-            Number(l.tax_amount) || 0,
-            Number(l.total_amount) || 0,
-            l.category_code || 'GENERAL',
-            l.destination_module || 'PURCHASE'
+            qty,
+            (l.unit || 'NOS').toUpperCase(),
+            rate,
+            discount,
+            taxable,
+            taxRate,
+            cgst,
+            sgst,
+            igst,
+            lineTax,
+            lineTotal,
+            catCode,
+            destMod
           ]
         );
       }
 
-      console.log(`✅ OK (${elapsedSec}s) — Vendor: "${extracted.vendor_name || 'N/A'}" | Total: ₹${extracted.total_invoice_amount || '0'} | Lines: ${lines.length}`);
+      console.log(`✅ OK (${elapsedSec}s) — Vendor: "${vendorName || 'N/A'}" | Total: ₹${totalInv || '0'} | Lines: ${rawLines.length}`);
       successCount++;
 
       // Pause 4.1 seconds to strictly guarantee staying within Google's 15 RPM 100% free tier limit

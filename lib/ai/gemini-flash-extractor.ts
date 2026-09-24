@@ -39,9 +39,12 @@ export async function extractDocumentWithGeminiFlash(
     );
   }
 
-  const fileBuffer = bufferOverride || (await fs.readFile(filePath));
+  const fileBuffer = bufferOverride || (filePath ? await fs.readFile(filePath) : null);
+  if (!fileBuffer) {
+    throw new Error('No file buffer or valid file path provided for extraction');
+  }
   const base64Data = fileBuffer.toString('base64');
-  const ext = path.extname(filePath).toLowerCase();
+  const ext = filePath ? path.extname(filePath).toLowerCase() : '.pdf';
 
   let effectiveMime = mimeType;
   if (!effectiveMime || effectiveMime === 'application/octet-stream') {
@@ -117,12 +120,13 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
   "full_text_summary": "Extracted OCR text from the document"
 }`;
 
-  // Call Gemini Flash models (gemini-3.5-flash verified 200 OK)
+  // Call Gemini Flash models (automatically falls back on 429 quota or errors)
   const models = [
+    'gemini-flash-lite-latest',
     'gemini-3.5-flash',
     'gemini-3.7-flash',
+    'gemini-3.8-flash',
     'gemini-3.6-flash',
-    'gemini-flash-latest',
     'gemini-3.5-flash-lite',
   ];
   let lastError: any = null;
@@ -189,6 +193,44 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
     throw new Error('Gemini output could not be parsed as JSON: ' + String(parseErr));
   }
 
+  const hdr = parsed.header || parsed.invoice_header || parsed;
+  const rawLines = Array.isArray(parsed.lines)
+    ? parsed.lines
+    : Array.isArray(parsed.line_items)
+    ? parsed.line_items
+    : Array.isArray(parsed.items)
+    ? parsed.items
+    : Array.isArray(parsed.invoice_items)
+    ? parsed.invoice_items
+    : Array.isArray(hdr.lines)
+    ? hdr.lines
+    : Array.isArray(hdr.line_items)
+    ? hdr.line_items
+    : Array.isArray(hdr.items)
+    ? hdr.items
+    : [];
+
+  const docType = parsed.document_type || hdr.document_type || 'INVOICE';
+  const docNum = parsed.document_number || parsed.invoice_number || hdr.document_number || hdr.invoice_number;
+  const invNum = parsed.invoice_number || parsed.document_number || hdr.invoice_number || hdr.document_number;
+  const docDate = parsed.document_date || parsed.invoice_date || hdr.document_date || hdr.invoice_date;
+  const vendorName = parsed.vendor_name || parsed.supplier_name || hdr.vendor_name || hdr.supplier_name;
+  const vendorGstin = parsed.vendor_gstin || parsed.gstin || parsed.supplier_gstin || hdr.vendor_gstin || hdr.gstin || hdr.supplier_gstin;
+  const vendorPan = parsed.vendor_pan || parsed.pan || hdr.vendor_pan || hdr.pan || (vendorGstin ? String(vendorGstin).substring(2, 12) : null);
+  const vendorAddress = parsed.vendor_address || parsed.supplier_address || hdr.vendor_address || hdr.supplier_address;
+  const custName = parsed.customer_name || parsed.buyer_name || hdr.customer_name || hdr.buyer_name || 'UCON PT STRUCTURAL SYSTEM PRIVATE LIMITED';
+  const custGstin = parsed.customer_gstin || parsed.buyer_gstin || hdr.customer_gstin || hdr.buyer_gstin || '33AAACU6685L1ZV';
+  const poNum = parsed.po_number || hdr.po_number;
+  const poDate = parsed.po_date || hdr.po_date;
+  const dcNum = parsed.dc_number || hdr.dc_number;
+  const dcDate = parsed.dc_date || hdr.dc_date;
+  const taxableVal = parsed.taxable_value ?? parsed.taxable_amount ?? hdr.taxable_value ?? hdr.taxable_amount;
+  const cgstVal = parsed.cgst_amount ?? hdr.cgst_amount;
+  const sgstVal = parsed.sgst_amount ?? hdr.sgst_amount;
+  const igstVal = parsed.igst_amount ?? hdr.igst_amount;
+  const totalTax = parsed.total_tax_amount ?? hdr.total_tax_amount ?? (Number(cgstVal || 0) + Number(sgstVal || 0) + Number(igstVal || 0));
+  const totalInv = parsed.total_invoice_amount ?? parsed.total_amount ?? hdr.total_invoice_amount ?? hdr.total_amount;
+
   // Map to DocumentAIField[] (Sections 1-5, all labels in CAPITAL LETTERS)
   const fields: DocumentAIField[] = [];
   const addField = (fieldName: string, label: string, val: any, conf = 0.98) => {
@@ -203,32 +245,31 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
     });
   };
 
-  addField('document_type', 'DOCUMENT TYPE', parsed.document_type || 'INVOICE');
-  addField('document_number', 'DOCUMENT NUMBER', parsed.document_number || parsed.invoice_number);
-  addField('invoice_number', 'INVOICE NUMBER', parsed.invoice_number || parsed.document_number);
-  addField('document_date', 'DOCUMENT DATE', parsed.document_date);
-  addField('vendor_name', 'VENDOR NAME', parsed.vendor_name);
-  addField('gstin', 'GSTIN', parsed.vendor_gstin);
-  addField('vendor_gstin', 'VENDOR GSTIN', parsed.vendor_gstin);
-  addField('pan', 'PAN', parsed.vendor_pan || (parsed.vendor_gstin ? parsed.vendor_gstin.substring(2, 12) : null));
-  addField('vendor_address', 'VENDOR ADDRESS', parsed.vendor_address);
-  addField('customer_name', 'CUSTOMER NAME', parsed.customer_name || 'UCON PT STRUCTURAL SYSTEM PRIVATE LIMITED');
-  addField('customer_gstin', 'CUSTOMER GSTIN', parsed.customer_gstin || '33AAACU6685L1ZV');
-  addField('po_number', 'PO NUMBER', parsed.po_number);
-  addField('po_date', 'PO DATE', parsed.po_date);
-  addField('dc_number', 'DC NUMBER', parsed.dc_number);
-  addField('dc_date', 'DC DATE', parsed.dc_date);
-  addField('taxable_value', 'TAXABLE VALUE', parsed.taxable_value !== undefined ? String(parsed.taxable_value) : null);
-  addField('cgst_amount', 'CGST AMOUNT', parsed.cgst_amount !== undefined ? String(parsed.cgst_amount) : null);
-  addField('sgst_amount', 'SGST AMOUNT', parsed.sgst_amount !== undefined ? String(parsed.sgst_amount) : null);
-  addField('igst_amount', 'IGST AMOUNT', parsed.igst_amount !== undefined ? String(parsed.igst_amount) : null);
-  addField('total_tax_amount', 'GST TOTAL', parsed.total_tax_amount !== undefined ? String(parsed.total_tax_amount) : null);
-  addField('total_invoice_amount', 'TOTAL INVOICE AMOUNT', parsed.total_invoice_amount !== undefined ? String(parsed.total_invoice_amount) : null);
-  addField('reverse_charge_applicable', 'REVERSE CHARGE APPLICABLE', parsed.reverse_charge || 'NO');
+  addField('document_type', 'DOCUMENT TYPE', docType);
+  addField('document_number', 'DOCUMENT NUMBER', docNum);
+  addField('invoice_number', 'INVOICE NUMBER', invNum);
+  addField('document_date', 'DOCUMENT DATE', docDate);
+  addField('vendor_name', 'VENDOR NAME', vendorName);
+  addField('gstin', 'GSTIN', vendorGstin);
+  addField('vendor_gstin', 'VENDOR GSTIN', vendorGstin);
+  addField('pan', 'PAN', vendorPan);
+  addField('vendor_address', 'VENDOR ADDRESS', vendorAddress);
+  addField('customer_name', 'CUSTOMER NAME', custName);
+  addField('customer_gstin', 'CUSTOMER GSTIN', custGstin);
+  addField('po_number', 'PO NUMBER', poNum);
+  addField('po_date', 'PO DATE', poDate);
+  addField('dc_number', 'DC NUMBER', dcNum);
+  addField('dc_date', 'DC DATE', dcDate);
+  addField('taxable_value', 'TAXABLE VALUE', taxableVal !== undefined && taxableVal !== null ? String(taxableVal) : null);
+  addField('cgst_amount', 'CGST AMOUNT', cgstVal !== undefined && cgstVal !== null ? String(cgstVal) : null);
+  addField('sgst_amount', 'SGST AMOUNT', sgstVal !== undefined && sgstVal !== null ? String(sgstVal) : null);
+  addField('igst_amount', 'IGST AMOUNT', igstVal !== undefined && igstVal !== null ? String(igstVal) : null);
+  addField('total_tax_amount', 'GST TOTAL', totalTax !== undefined && totalTax !== null ? String(totalTax) : null);
+  addField('total_invoice_amount', 'TOTAL INVOICE AMOUNT', totalInv !== undefined && totalInv !== null ? String(totalInv) : null);
+  addField('reverse_charge_applicable', 'REVERSE CHARGE APPLICABLE', parsed.reverse_charge || hdr.reverse_charge || 'NO');
 
   // Map Line Items
   const lines: DocumentAILineItem[] = [];
-  const rawLines = Array.isArray(parsed.lines) ? parsed.lines : [];
 
   for (let i = 0; i < rawLines.length; i++) {
     const rl = rawLines[i];

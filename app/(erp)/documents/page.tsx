@@ -67,6 +67,7 @@ export default function DocumentsPage() {
   const [posting, setPosting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [showRawOcr, setShowRawOcr] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [message, setMessage] = useState('');
@@ -372,6 +373,55 @@ export default function DocumentsPage() {
       setMessage(`Error posting to ERP: ${err.message}`);
     } finally {
       setPosting(false);
+    }
+  }
+
+  async function handleSaveDraft() {
+    if (!selected) return;
+    setSavingDraft(true);
+    setMessage('');
+
+    try {
+      const vendorField = editableFields.find((f) => f.fieldName === 'vendor_name');
+      const docNumField = editableFields.find((f) => f.fieldName === 'invoice_number' || f.fieldName === 'document_number');
+      const docDateField = editableFields.find((f) => f.fieldName === 'document_date');
+
+      const vendorName = vendorField?.reviewedValue && vendorField.reviewedValue !== 'NOT AVAILABLE'
+        ? vendorField.reviewedValue
+        : '';
+      const documentNumber = docNumField?.reviewedValue && docNumField.reviewedValue !== 'NOT AVAILABLE'
+        ? docNumField.reviewedValue
+        : '';
+      const documentDate = docDateField?.reviewedValue && docDateField.reviewedValue !== 'NOT AVAILABLE'
+        ? docDateField.reviewedValue
+        : '';
+
+      const res = await fetch('/api/documents', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selected.id,
+          action: 'save_draft',
+          vendorName,
+          documentNumber,
+          documentDate,
+          verifiedFields: editableFields,
+          verifiedLines: editableLines,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(`Save error: ${data.error || 'Failed to save changes'}`);
+      } else {
+        setMessage(`✓ Success: ${data.message || 'Line items and canonical fields saved successfully!'}`);
+        await openDoc(selected);
+        await load();
+      }
+    } catch (err: any) {
+      setMessage(`Save error: ${err.message}`);
+    } finally {
+      setSavingDraft(false);
     }
   }
 
@@ -703,6 +753,23 @@ export default function DocumentsPage() {
               </a>
               <button
                 type="button"
+                className="primary"
+                onClick={handleSaveDraft}
+                disabled={savingDraft}
+                style={{
+                  fontSize: 12,
+                  padding: '7px 14px',
+                  fontWeight: 700,
+                  backgroundColor: '#2563eb',
+                  borderColor: '#1d4ed8',
+                  color: '#ffffff',
+                }}
+                title="Save changes to Line Items and Canonical Fields without posting to ERP"
+              >
+                {savingDraft ? '💾 Saving…' : '💾 Save Changes'}
+              </button>
+              <button
+                type="button"
                 className="ghost"
                 onClick={handleReprocess}
                 disabled={reprocessing}
@@ -932,6 +999,23 @@ export default function DocumentsPage() {
                   style={{ fontSize: 11, padding: '5px 12px' }}
                 >
                   + Add Line Item
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={handleSaveDraft}
+                  disabled={savingDraft}
+                  style={{
+                    fontSize: 11,
+                    padding: '5px 14px',
+                    fontWeight: 700,
+                    backgroundColor: '#2563eb',
+                    borderColor: '#1d4ed8',
+                    color: '#ffffff',
+                  }}
+                  title="Save current line items to database"
+                >
+                  {savingDraft ? '💾 Saving…' : '💾 Save Line Items'}
                 </button>
               </div>
             </div>
@@ -1415,6 +1499,25 @@ export default function DocumentsPage() {
                   style={{ padding: '10px 16px', fontSize: 13, background: '#fee2e2', color: '#b91c1c', borderColor: '#fca5a5' }}
                 >
                   {deleting ? 'Deleting…' : '🗑️ Delete Document'}
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={savingDraft}
+                  onClick={handleSaveDraft}
+                  style={{
+                    padding: '10px 18px',
+                    fontSize: 13,
+                    fontWeight: 750,
+                    background: '#2563eb',
+                    borderColor: '#1d4ed8',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.2)',
+                  }}
+                  title="Save current line items and canonical fields without posting to live ERP"
+                >
+                  {savingDraft ? '💾 Saving…' : '💾 Save Changes (Keep in Queue)'}
                 </button>
 
                 <button

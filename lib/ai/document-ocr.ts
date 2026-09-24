@@ -805,8 +805,8 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
   return lines;
 }
 
-export async function processDocumentOCR(filePath: string, mimeType: string): Promise<DocumentAIResult> {
-  // 1. Primary AI Vision Engine: Google Gemini 2.0 Flash (98%+ accuracy on complex scans & multi-line tables)
+export async function processDocumentOCR(filePath: string, mimeType: string, bufferOverride?: Buffer): Promise<DocumentAIResult> {
+  // 1. Primary AI Vision Engine: Google Gemini Flash (98%+ accuracy on complex scans & multi-line tables)
   const apiKey =
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
@@ -815,9 +815,9 @@ export async function processDocumentOCR(filePath: string, mimeType: string): Pr
   if (apiKey) {
     try {
       const { extractDocumentWithGeminiFlash } = await import('./gemini-flash-extractor');
-      return await extractDocumentWithGeminiFlash(filePath, mimeType);
+      return await extractDocumentWithGeminiFlash(filePath, mimeType, bufferOverride);
     } catch (geminiErr: any) {
-      console.warn('Gemini 2.0 Flash extraction failed, falling back to local OCR engine:', geminiErr?.message || geminiErr);
+      console.warn('Gemini Flash extraction failed, falling back to local OCR engine:', geminiErr?.message || geminiErr);
     }
   }
 

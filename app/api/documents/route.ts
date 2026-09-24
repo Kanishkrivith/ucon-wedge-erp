@@ -222,7 +222,7 @@ export async function POST(req: Request) {
     try {
       const ocrResult = isExcel
         ? await processExcelDocument(filePath, buffer)
-        : await processDocumentOCR(filePath, mimeType);
+        : await processDocumentOCR(filePath, mimeType, buffer);
 
       // Save OCR extractions
       for (const field of ocrResult.fields) {
@@ -670,9 +670,10 @@ export async function PATCH(req: Request) {
         doc.mime_type?.includes('excel') ||
         doc.source_kind === 'SPREADSHEET';
 
+      const fileBuffer = doc.file_data ? Buffer.from(doc.file_data, 'base64') : undefined;
       const ocrResult = isExcel
-        ? await processExcelDocument(filePath)
-        : await processDocumentOCR(filePath, doc.mime_type || 'application/pdf');
+        ? await processExcelDocument(filePath, fileBuffer)
+        : await processDocumentOCR(filePath, doc.mime_type || 'application/pdf', fileBuffer);
 
       // Clear old extractions & line items
       await pool.query('DELETE FROM document_extractions WHERE document_id = $1', [id]);
@@ -809,8 +810,8 @@ export async function PATCH(req: Request) {
       return json({ ok: true, message: 'Document re-scanned and extracted successfully!' });
     }
 
-    // Controlled ERP Posting (Sections 51, 53, 78 & 86 requirement)
-    if (action === 'verify' || action === 'post_to_erp') {
+    // Controlled ERP Posting & Draft Updates (Sections 51, 53, 78 & 86 requirement)
+    if (action === 'verify' || action === 'post_to_erp' || action === 'save_draft' || action === 'update_lines') {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
@@ -1052,6 +1053,19 @@ export async function PATCH(req: Request) {
           docDate = new Date().toISOString().split('T')[0];
         } else {
           docDate = new Date(docDate).toISOString().split('T')[0];
+        }
+
+        if (action === 'save_draft' || action === 'update_lines') {
+          await client.query(
+            `UPDATE documents
+             SET document_number = COALESCE($1, document_number),
+                 document_date = COALESCE($2, document_date),
+                 vendor_id = COALESCE($3, vendor_id)
+             WHERE id = $4`,
+            [docNumber || null, docDate || null, vendorId || null, id]
+          );
+          await client.query('COMMIT');
+          return json({ ok: true, message: 'Line items and canonical fields saved successfully.' });
         }
 
         const linesToPost = verifiedLines && verifiedLines.length > 0
