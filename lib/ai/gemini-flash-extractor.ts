@@ -117,8 +117,14 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
   "full_text_summary": "Extracted OCR text from the document"
 }`;
 
-  // Call Gemini 2.0 Flash (with automatic fallback to gemini-1.5-flash if needed)
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+  // Call Gemini Flash models (gemini-3.5-flash verified 200 OK)
+  const models = [
+    'gemini-3.5-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-flash-latest',
+    'gemini-3.5-flash-lite',
+  ];
   let lastError: any = null;
   let rawResponseText = '';
 

@@ -31,7 +31,7 @@ function getAllPdfFiles(dir) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function callGemini(apiKey, base64Pdf, prompt) {
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+  const models = ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite'];
   let lastErr = null;
 
   for (const model of models) {
@@ -243,8 +243,8 @@ async function main() {
       console.log(`✅ OK (${elapsedSec}s) — Vendor: "${extracted.vendor_name || 'N/A'}" | Total: ₹${extracted.total_invoice_amount || '0'} | Lines: ${lines.length}`);
       successCount++;
 
-      // Pause 2.5 seconds to respect 15 RPM free tier limit
-      await sleep(2500);
+      // Pause 4.1 seconds to strictly guarantee staying within Google's 15 RPM 100% free tier limit
+      await sleep(4100);
     } catch (err) {
       console.log(`❌ ERROR: ${err.message}`);
       failCount++;
