@@ -901,7 +901,7 @@ export async function PATCH(req: Request) {
             const lCategoryCode = l.categoryCode || l.category_code || l.reviewed_category_code || 'OTHER_EXPENSE';
             const lSubCat = l.subCategory || l.sub_category || l.reviewed_sub_category || null;
             const lDestination = l.destinationModule || l.destination_module || l.reviewed_destination_module || 'Purchase';
-            const lCapexOpex = l.capexOrOpex || l.capex_or_opex || l.reviewed_capex_or_opex || (lCategoryCode.includes('MACHINE') ? 'CAPEX' : 'OPEX');
+            const lCapexOpex = (String(l.capexOrOpex || l.capex_or_opex || l.reviewed_capex_or_opex || (lCategoryCode.includes('MACHINE') ? 'CAPEX' : 'OPEX')).toUpperCase().includes('CAPEX')) ? 'CAPEX' : 'OPEX';
             const lCostingHead = l.costingHead || l.costing_head || l.reviewed_costing_head || 'OTHER EXPENSES';
 
             if (isExistingUuid) {
@@ -1095,10 +1095,34 @@ export async function PATCH(req: Request) {
         const cgstAmount = Number(getVal(['cgst_amount', 'cgst']) || 0);
         const sgstAmount = Number(getVal(['sgst_amount', 'sgst']) || 0);
         const igstAmount = Number(getVal(['igst_amount', 'igst']) || 0);
-        const vehicleNumber = getVal(['vehicle_number', 'vehicle_no']);
-        const transporterName = getVal(['transporter_name', 'transporter']);
-        const lrNumber = getVal(['lr_number', 'lr_no']);
-        const reverseCharge = getVal(['reverse_charge_applicable', 'reverse_charge']) || 'NO';
+
+        const rawVehicle = getVal(['vehicle_number', 'vehicle_no']);
+        const vehicleNumber = rawVehicle && rawVehicle !== 'NOT AVAILABLE' && rawVehicle !== 'NEEDS REVIEW'
+          ? String(rawVehicle).trim().substring(0, 50)
+          : null;
+
+        const rawTransporter = getVal(['transporter_name', 'transporter']);
+        const transporterName = rawTransporter && rawTransporter !== 'NOT AVAILABLE' && rawTransporter !== 'NEEDS REVIEW'
+          ? String(rawTransporter).trim().substring(0, 150)
+          : null;
+
+        const rawLr = getVal(['lr_number', 'lr_no']);
+        const lrNumber = rawLr && rawLr !== 'NOT AVAILABLE' && rawLr !== 'NEEDS REVIEW'
+          ? String(rawLr).trim().substring(0, 50)
+          : null;
+
+        let rawRc = getVal(['reverse_charge_applicable', 'reverse_charge', 'reverse_charge_flag']);
+        let reverseCharge = 'NO';
+        if (rawRc) {
+          const rcUpper = String(rawRc).toUpperCase().trim();
+          if (rcUpper === 'YES' || rcUpper === 'Y' || (rcUpper.includes('APPLICABLE') && !rcUpper.includes('NOT'))) {
+            reverseCharge = 'YES';
+          } else if (rcUpper === 'NO' || rcUpper === 'N' || rcUpper.includes('NOT APPLICABLE') || rcUpper.includes('NOT AVAILABLE') || rcUpper.includes('NEEDS REVIEW')) {
+            reverseCharge = 'NO';
+          } else {
+            reverseCharge = rcUpper.length > 50 ? rcUpper.substring(0, 50) : rcUpper;
+          }
+        }
         const amountInWords = getVal(['amount_in_words']);
 
         // 5. Create or Update Invoices record with canonical fields
@@ -1188,7 +1212,7 @@ export async function PATCH(req: Request) {
           const cgstAmt = Number(line.reviewed_cgst_amount ?? line.cgstAmount ?? line.cgst_amount ?? 0);
           const sgstAmt = Number(line.reviewed_sgst_amount ?? line.sgstAmount ?? line.sgst_amount ?? 0);
           const igstAmt = Number(line.reviewed_igst_amount ?? line.igstAmount ?? line.igst_amount ?? 0);
-          const capexOrOpex = line.reviewed_capex_or_opex || line.capexOrOpex || line.capex_or_opex || (rawCat.includes('MACHINE') ? 'CAPEX' : 'OPEX');
+          const capexOrOpex = (String(line.reviewed_capex_or_opex || line.capexOrOpex || line.capex_or_opex || (rawCat.includes('MACHINE') ? 'CAPEX' : 'OPEX')).toUpperCase().includes('CAPEX')) ? 'CAPEX' : 'OPEX';
           const costingHead = line.reviewed_costing_head || line.costingHead || line.costing_head || 'OTHER EXPENSES';
 
           // 1. Record item in invoice_items with full canonical fields

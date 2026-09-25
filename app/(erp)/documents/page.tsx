@@ -61,9 +61,10 @@ export default function DocumentsPage() {
   const [editableFields, setEditableFields] = useState<EditableHeaderField[]>([]);
   const [editableLines, setEditableLines] = useState<EditableLineItem[]>([]);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'LINES' | 'HEADER' | 'OCR_TEXT' | 'ALL'>('LINES');
+  const [linesViewMode, setLinesViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
   const [viewLayout, setViewLayout] = useState<'SPLIT' | 'FULL'>('SPLIT');
   const [previewDocType, setPreviewDocType] = useState<'ORIGINAL' | 'OCR_TEXT'>('ORIGINAL');
-  const [splitRatio, setSplitRatio] = useState<'45_55' | '50_50' | '60_40'>('45_55');
+  const [splitRatio, setSplitRatio] = useState<'35_65' | '45_55' | '50_50' | '60_40'>('45_55');
   const [imageZoom, setImageZoom] = useState<number>(100);
   const [imageRotation, setImageRotation] = useState<number>(0);
   const [lineFilter, setLineFilter] = useState('');
@@ -145,6 +146,7 @@ export default function DocumentsPage() {
     setSelected(d);
     setMessage('');
     setActiveWorkspaceTab('LINES'); // Default active tab is Line-Level Routing Table
+    setLinesViewMode('CARDS');
     setPreviewDocType('ORIGINAL');
     setImageZoom(100);
     setImageRotation(0);
@@ -993,6 +995,24 @@ export default function DocumentsPage() {
                   <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700 }}>SPLIT:</span>
                   <button
                     type="button"
+                    onClick={() => setSplitRatio('35_65')}
+                    style={{
+                      fontSize: 10,
+                      padding: '2px 6px',
+                      border: 'none',
+                      background: splitRatio === '35_65' ? '#fff' : 'transparent',
+                      fontWeight: splitRatio === '35_65' ? 800 : 500,
+                      color: splitRatio === '35_65' ? 'var(--navy)' : 'var(--muted)',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      boxShadow: splitRatio === '35_65' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                    }}
+                    title="Compact Doc (35%), Wide Editor (65%)"
+                  >
+                    35:65
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setSplitRatio('45_55')}
                     style={{
                       fontSize: 10,
@@ -1071,6 +1091,8 @@ export default function DocumentsPage() {
               gridTemplateColumns:
                 viewLayout === 'FULL'
                   ? '1fr'
+                  : splitRatio === '35_65'
+                  ? 'minmax(320px, 35%) 1fr'
                   : splitRatio === '45_55'
                   ? 'minmax(380px, 45%) 1fr'
                   : splitRatio === '50_50'
@@ -1337,12 +1359,56 @@ export default function DocumentsPage() {
                       </small>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {/* View Switcher: Cards vs Table */}
+                      <div style={{ display: 'inline-flex', background: '#e2e8f0', padding: 2, borderRadius: 6, gap: 2 }}>
+                        <button
+                          type="button"
+                          onClick={() => setLinesViewMode('CARDS')}
+                          style={{
+                            fontSize: 11,
+                            padding: '4px 10px',
+                            borderRadius: 4,
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontWeight: linesViewMode === 'CARDS' ? 800 : 600,
+                            background: linesViewMode === 'CARDS' ? '#2563eb' : 'transparent',
+                            color: linesViewMode === 'CARDS' ? '#ffffff' : '#334155',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                          }}
+                          title="Full-Visibility Cards: Auto-expanding descriptions, all GST numbers and routing visible simultaneously without horizontal scroll"
+                        >
+                          🗂️ Responsive View (Zero Scroll)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLinesViewMode('TABLE')}
+                          style={{
+                            fontSize: 11,
+                            padding: '4px 10px',
+                            borderRadius: 4,
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontWeight: linesViewMode === 'TABLE' ? 800 : 600,
+                            background: linesViewMode === 'TABLE' ? '#2563eb' : 'transparent',
+                            color: linesViewMode === 'TABLE' ? '#ffffff' : '#334155',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                          }}
+                          title="23-Column spreadsheet table"
+                        >
+                          ▤ 23-Column Table
+                        </button>
+                      </div>
+
                       <input
                         placeholder="Filter lines (description, part#, HSN, group)..."
                         value={lineFilter}
                         onChange={(e) => setLineFilter(e.target.value)}
-                        style={{ fontSize: 11, padding: '5px 8px', width: 220 }}
+                        style={{ fontSize: 11, padding: '5px 8px', width: 190 }}
                       />
                       <button
                         type="button"
@@ -1372,347 +1438,54 @@ export default function DocumentsPage() {
                     </div>
                   </div>
 
-                  {/* 23-Column Responsive Table */}
-                  <div className="table-wrap" style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff' }}>
-                    <table style={{ minWidth: 1950, fontSize: 11 }}>
-                      <thead>
-                        <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
-                          <th style={{ width: 35, textAlign: 'center' }}>#</th>
-                          <th style={{ minWidth: 200 }}>DESCRIPTION</th>
-                          <th style={{ width: 100 }}>PART / ITEM NO</th>
-                          <th style={{ width: 85 }}>HSN / SAC</th>
-                          <th style={{ width: 60 }}>QTY</th>
-                          <th style={{ width: 55 }}>UNIT</th>
-                          <th style={{ width: 85 }}>RATE (₹)</th>
-                          <th style={{ width: 70 }}>DISCOUNT</th>
-                          <th style={{ width: 95 }}>TAXABLE (₹)</th>
-                          <th style={{ width: 65 }}>TAX %</th>
-                          <th style={{ width: 80 }}>CGST (₹)</th>
-                          <th style={{ width: 80 }}>SGST (₹)</th>
-                          <th style={{ width: 85 }}>IGST (₹)</th>
-                          <th style={{ width: 85 }}>GST TOTAL</th>
-                          <th style={{ width: 105 }}>TOTAL AMOUNT (₹)</th>
-                          <th style={{ minWidth: 190 }}>CATEGORY GROUP (A-V)</th>
-                          <th style={{ minWidth: 160 }}>SUB-CATEGORY</th>
-                          <th style={{ minWidth: 140 }}>ERP DESTINATION</th>
-                          <th style={{ width: 80 }}>CAPEX / OPEX</th>
-                          <th style={{ minWidth: 130 }}>COSTING HEAD</th>
-                          <th style={{ width: 75, textAlign: 'center' }}>CONFIDENCE</th>
-                          <th style={{ width: 95, textAlign: 'center' }}>STATUS</th>
-                          <th style={{ width: 40, textAlign: 'center' }}>DEL</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredLines.length ? (
-                          filteredLines.map((l) => {
-                            const originalIndex = editableLines.findIndex((item) => item.id === l.id);
-                            const activeGroup = MASTER_CATEGORY_GROUPS.find((g) => g.groupName === l.categoryCode);
-                            const subCategories = activeGroup?.categories || [];
-                            const isSelectedRow = selectedLineId === l.id;
+                  {/* LINE ITEMS VIEW: RESPONSIVE CARDS (ZERO HORIZONTAL SCROLL) OR 23-COLUMN TABLE */}
+                  {linesViewMode === 'CARDS' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {filteredLines.length ? (
+                        filteredLines.map((l) => {
+                          const originalIndex = editableLines.findIndex((item) => item.id === l.id);
+                          const activeGroup = MASTER_CATEGORY_GROUPS.find((g) => g.groupName === l.categoryCode);
+                          const subCategories = activeGroup?.categories || [];
+                          const isSelectedRow = selectedLineId === l.id;
 
-                            return (
-                              <tr
-                                key={l.id}
-                                onClick={() => setSelectedLineId(l.id)}
-                                style={{
-                                  borderBottom: '1px solid #e2e8f0',
-                                  background: isSelectedRow ? '#f0f9ff' : undefined,
-                                }}
-                              >
-                                {/* Line No */}
-                                <td style={{ textAlign: 'center', fontWeight: 800, color: isSelectedRow ? '#0284c7' : 'var(--muted)' }}>
-                                  {l.lineNo}
-                                </td>
-
-                                {/* Description */}
-                                <td>
-                                  <input
+                          return (
+                            <div
+                              key={l.id}
+                              onClick={() => setSelectedLineId(l.id)}
+                              style={{
+                                background: '#ffffff',
+                                border: isSelectedRow ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                borderRadius: 8,
+                                padding: '12px 14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10,
+                                boxShadow: isSelectedRow ? '0 4px 14px rgba(2, 132, 199, 0.15)' : '0 1px 3px rgba(0,0,0,0.04)',
+                                transition: 'border-color 0.15s ease',
+                              }}
+                            >
+                              {/* CARD HEADER */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span
                                     style={{
-                                      width: '100%',
-                                      fontSize: 11,
-                                      padding: '4px 6px',
-                                      fontWeight: 650,
-                                      borderColor: isSelectedRow ? '#38bdf8' : undefined,
-                                    }}
-                                    value={l.description}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].description = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                  />
-                                </td>
-
-                                {/* Part Number */}
-                                <td>
-                                  <input
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px' }}
-                                    value={l.partNumber}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].partNumber = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                    placeholder="Part ID"
-                                  />
-                                </td>
-
-                                {/* HSN */}
-                                <td>
-                                  <input
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px' }}
-                                    value={l.hsnCode}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].hsnCode = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                    placeholder="HSN"
-                                  />
-                                </td>
-
-                                {/* Quantity */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right' }}
-                                    value={l.quantity}
-                                    onChange={(e) => updateLineCalculation(originalIndex, { quantity: e.target.value })}
-                                  />
-                                </td>
-
-                                {/* Unit */}
-                                <td>
-                                  <input
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px' }}
-                                    value={l.unit}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].unit = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                  />
-                                </td>
-
-                                {/* Rate */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right' }}
-                                    value={l.unitRate}
-                                    onChange={(e) => updateLineCalculation(originalIndex, { unitRate: e.target.value })}
-                                  />
-                                </td>
-
-                                {/* Discount */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right' }}
-                                    value={l.discount}
-                                    onChange={(e) => updateLineCalculation(originalIndex, { discount: e.target.value })}
-                                  />
-                                </td>
-
-                                {/* Taxable Value */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', fontWeight: 650, textAlign: 'right' }}
-                                    value={l.taxableAmount}
-                                    onChange={(e) => updateLineCalculation(originalIndex, { taxableAmount: e.target.value })}
-                                  />
-                                </td>
-
-                                {/* Tax Rate % */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right' }}
-                                    value={l.taxRate}
-                                    onChange={(e) => updateLineCalculation(originalIndex, { taxRate: e.target.value })}
-                                  />
-                                </td>
-
-                                {/* CGST */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right' }}
-                                    value={l.cgstAmount}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].cgstAmount = e.target.value;
-                                      next[originalIndex].taxAmount = Number(e.target.value) + Number(next[originalIndex].sgstAmount) + Number(next[originalIndex].igstAmount);
-                                      next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
-                                      setEditableLines(next);
-                                    }}
-                                  />
-                                </td>
-
-                                {/* SGST */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right' }}
-                                    value={l.sgstAmount}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].sgstAmount = e.target.value;
-                                      next[originalIndex].taxAmount = Number(next[originalIndex].cgstAmount) + Number(e.target.value) + Number(next[originalIndex].igstAmount);
-                                      next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
-                                      setEditableLines(next);
-                                    }}
-                                  />
-                                </td>
-
-                                {/* IGST */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right' }}
-                                    value={l.igstAmount}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].igstAmount = e.target.value;
-                                      next[originalIndex].taxAmount = Number(next[originalIndex].cgstAmount) + Number(next[originalIndex].sgstAmount) + Number(e.target.value);
-                                      next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
-                                      setEditableLines(next);
-                                    }}
-                                  />
-                                </td>
-
-                                {/* GST Total */}
-                                <td style={{ textAlign: 'right', fontWeight: 700, padding: '4px 8px', color: '#0369a1' }}>
-                                  ₹{Number(l.taxAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                </td>
-
-                                {/* Total Amount */}
-                                <td>
-                                  <input
-                                    type="number"
-                                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', fontWeight: 800, textAlign: 'right', color: 'var(--navy)' }}
-                                    value={l.totalAmount}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].totalAmount = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                  />
-                                </td>
-
-                                {/* Category Group */}
-                                <td>
-                                  <select
-                                    style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', fontWeight: 650 }}
-                                    value={l.categoryCode}
-                                    onChange={(e) => handleCategoryGroupChange(originalIndex, e.target.value)}
-                                  >
-                                    {MASTER_CATEGORY_GROUPS.map((g) => (
-                                      <option key={g.groupCode} value={g.groupName}>
-                                        {g.groupName}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-
-                                {/* Sub-Category */}
-                                <td>
-                                  <select
-                                    style={{ width: '100%', fontSize: 10.5, padding: '4px 6px' }}
-                                    value={l.subCategory}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].subCategory = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                  >
-                                    {subCategories.length > 0 ? (
-                                      subCategories.map((sub) => (
-                                        <option key={sub} value={sub}>
-                                          {sub}
-                                        </option>
-                                      ))
-                                    ) : (
-                                      <option value={l.subCategory || 'GENERAL'}>{l.subCategory || 'GENERAL'}</option>
-                                    )}
-                                  </select>
-                                </td>
-
-                                {/* ERP Destination */}
-                                <td>
-                                  <select
-                                    style={{ width: '100%', fontSize: 10.5, padding: '4px 6px' }}
-                                    value={l.destinationModule}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].destinationModule = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                  >
-                                    {ERP_DESTINATION_MODULES.map((dest) => (
-                                      <option key={dest} value={dest}>
-                                        {dest}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-
-                                {/* CapEx / OpEx */}
-                                <td style={{ textAlign: 'center' }}>
-                                  <select
-                                    style={{
-                                      fontSize: 10,
-                                      padding: '3px 6px',
-                                      fontWeight: 800,
-                                      color: l.capexOrOpex === 'CAPEX' ? '#b45309' : '#047857',
-                                      background: l.capexOrOpex === 'CAPEX' ? '#fef3c7' : '#d1fae5',
-                                      border: '1px solid #cbd5e1',
+                                      background: isSelectedRow ? '#0284c7' : '#1e293b',
+                                      color: '#ffffff',
+                                      fontWeight: 900,
+                                      fontSize: 12,
+                                      padding: '2px 8px',
                                       borderRadius: 4,
                                     }}
-                                    value={l.capexOrOpex}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].capexOrOpex = e.target.value as 'CAPEX' | 'OPEX';
-                                      setEditableLines(next);
-                                    }}
                                   >
-                                    <option value="CAPEX">CAPEX</option>
-                                    <option value="OPEX">OPEX</option>
-                                  </select>
-                                </td>
-
-                                {/* Costing Head */}
-                                <td>
-                                  <select
-                                    style={{ width: '100%', fontSize: 10.5, padding: '4px 6px' }}
-                                    value={l.costingHead}
-                                    onChange={(e) => {
-                                      const next = [...editableLines];
-                                      next[originalIndex].costingHead = e.target.value;
-                                      setEditableLines(next);
-                                    }}
-                                  >
-                                    {MASTER_COSTING_HEADS.map((head) => (
-                                      <option key={head} value={head}>
-                                        {head}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-
-                                {/* Confidence */}
-                                <td style={{ textAlign: 'center' }}>
-                                  <span className={`badge ${l.confidenceStatus === 'HIGH' ? 'green' : 'amber'}`} style={{ fontSize: 9 }}>
-                                    {(Number(l.confidence || 0.9) * 100).toFixed(0)}%
+                                    LINE #{l.lineNo}
                                   </span>
-                                </td>
-
-                                {/* Status */}
-                                <td style={{ textAlign: 'center' }}>
+                                  <span className={`badge ${l.confidenceStatus === 'HIGH' ? 'green' : 'amber'}`} style={{ fontSize: 10 }}>
+                                    CONFIDENCE: {(Number(l.confidence || 0.9) * 100).toFixed(0)}%
+                                  </span>
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       const next = [...editableLines];
                                       next[originalIndex].reviewStatus =
                                         next[originalIndex].reviewStatus === 'VERIFIED' ? 'PENDING REVIEW' : 'VERIFIED';
@@ -1723,48 +1496,791 @@ export default function DocumentsPage() {
                                       background: l.reviewStatus === 'VERIFIED' ? '#dcfce7' : '#fef9c3',
                                       color: l.reviewStatus === 'VERIFIED' ? '#15803d' : '#a16207',
                                       fontWeight: 750,
-                                      fontSize: 9.5,
-                                      padding: '3px 6px',
+                                      fontSize: 10,
+                                      padding: '3px 8px',
                                       borderRadius: 4,
                                       cursor: 'pointer',
                                     }}
                                   >
-                                    {l.reviewStatus === 'VERIFIED' ? '✓ VERIFIED' : '⏳ PENDING'}
+                                    {l.reviewStatus === 'VERIFIED' ? '✓ VERIFIED' : '⏳ PENDING REVIEW'}
                                   </button>
-                                </td>
+                                </div>
 
-                                {/* Delete Action */}
-                                <td style={{ textAlign: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <span style={{ fontSize: 9.5, color: 'var(--muted)', display: 'block', fontWeight: 700 }}>
+                                      LINE TOTAL
+                                    </span>
+                                    <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--navy)' }}>
+                                      ₹{Number(l.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       const next = editableLines.filter((_, i) => i !== originalIndex);
                                       setEditableLines(next);
                                     }}
                                     style={{
-                                      border: 'none',
-                                      background: 'transparent',
-                                      color: '#ef4444',
+                                      border: '1px solid #fecaca',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
                                       cursor: 'pointer',
-                                      fontSize: 13,
-                                      padding: 2,
+                                      fontSize: 11,
+                                      padding: '3px 8px',
+                                      borderRadius: 4,
+                                      fontWeight: 700,
                                     }}
                                     title="Delete line"
                                   >
-                                    ✕
+                                    ✕ Delete
                                   </button>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan={23}><div className="empty">No line items match filter.</div></td>
+                                </div>
+                              </div>
+
+                              {/* DESCRIPTION & PART / HSN ROW */}
+                              <div>
+                                <label style={{ fontSize: 10, fontWeight: 750, color: '#334155', display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                                  <span>DESCRIPTION (AUTO-EXPANDING HEIGHT — 100% VISIBLE)</span>
+                                  <span style={{ fontSize: 9.5, color: 'var(--muted)', fontWeight: 500 }}>Wraps text dynamically; resizeable</span>
+                                </label>
+                                <textarea
+                                  style={{
+                                    width: '100%',
+                                    minHeight: 48,
+                                    fontSize: 12,
+                                    lineHeight: 1.4,
+                                    padding: '6px 8px',
+                                    fontWeight: 650,
+                                    borderRadius: 6,
+                                    border: isSelectedRow ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                                    fontFamily: 'inherit',
+                                    resize: 'vertical',
+                                    background: '#f8fafc',
+                                    color: '#0f172a',
+                                    boxSizing: 'border-box',
+                                  }}
+                                  rows={Math.max(2, Math.ceil((l.description?.length || 0) / 45))}
+                                  value={l.description}
+                                  placeholder="Extracted line item description..."
+                                  onChange={(e) => {
+                                    const next = [...editableLines];
+                                    next[originalIndex].description = e.target.value;
+                                    setEditableLines(next);
+                                  }}
+                                />
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div>
+                                  <label style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
+                                    PART / ITEM NO
+                                  </label>
+                                  <input
+                                    style={{ width: '100%', fontSize: 11, padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                    value={l.partNumber}
+                                    placeholder="Part / Item No"
+                                    onChange={(e) => {
+                                      const next = [...editableLines];
+                                      next[originalIndex].partNumber = e.target.value;
+                                      setEditableLines(next);
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
+                                    HSN / SAC CODE
+                                  </label>
+                                  <input
+                                    style={{ width: '100%', fontSize: 11, padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                    value={l.hsnCode}
+                                    placeholder="HSN / SAC"
+                                    onChange={(e) => {
+                                      const next = [...editableLines];
+                                      next[originalIndex].hsnCode = e.target.value;
+                                      setEditableLines(next);
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* FINANCIALS & ALL GST NUMBERS (COMPLETELY VISIBLE SIDE-BY-SIDE) */}
+                              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 10px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#1e40af', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                                    💰 Financials &amp; GST Breakdown (All Numbers Visible)
+                                  </span>
+                                  <span style={{ fontSize: 9.5, color: 'var(--muted)' }}>
+                                    Auto-recalculates on edit
+                                  </span>
+                                </div>
+
+                                {/* Row 1: Qty, Unit, Rate, Discount, Taxable, Tax% */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 6, alignItems: 'end' }}>
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block' }}>QTY</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '3px 5px', textAlign: 'right', fontWeight: 650, borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.quantity}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { quantity: e.target.value })}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block' }}>UNIT</label>
+                                    <input
+                                      style={{ width: '100%', fontSize: 11, padding: '3px 5px', textAlign: 'center', borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.unit}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].unit = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block' }}>RATE (₹)</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '3px 5px', textAlign: 'right', fontWeight: 650, borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.unitRate}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { unitRate: e.target.value })}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block' }}>DISCOUNT (₹)</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '3px 5px', textAlign: 'right', borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.discount}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { discount: e.target.value })}
+                                    />
+                                  </div>
+                                  <div style={{ background: '#fef3c7', padding: '2px 4px', borderRadius: 4, border: '1px solid #fde68a' }}>
+                                    <label style={{ fontSize: 9, fontWeight: 800, color: '#92400e', display: 'block' }}>TAXABLE (₹)</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '3px 5px', textAlign: 'right', fontWeight: 800, color: '#92400e', borderRadius: 3, border: '1px solid #f59e0b', background: '#fff', boxSizing: 'border-box' }}
+                                      value={l.taxableAmount}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { taxableAmount: e.target.value })}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block' }}>TAX %</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '3px 5px', textAlign: 'right', fontWeight: 700, borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.taxRate}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { taxRate: e.target.value })}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Row 2: ALL GST NUMBERS (CGST, SGST, IGST, GST TOTAL, TOTAL AMOUNT) */}
+                                <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed #cbd5e1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6, alignItems: 'center' }}>
+                                  <div style={{ background: '#ecfdf5', padding: '3px 5px', borderRadius: 4, border: '1px solid #a7f3d0' }}>
+                                    <label style={{ fontSize: 8.5, fontWeight: 800, color: '#065f46', display: 'block' }}>CGST (₹)</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '2px 4px', textAlign: 'right', fontWeight: 700, color: '#065f46', border: '1px solid #6ee7b7', borderRadius: 3, background: '#fff', boxSizing: 'border-box' }}
+                                      value={l.cgstAmount}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].cgstAmount = e.target.value;
+                                        next[originalIndex].taxAmount = Number(e.target.value) + Number(next[originalIndex].sgstAmount) + Number(next[originalIndex].igstAmount);
+                                        next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </div>
+
+                                  <div style={{ background: '#ecfdf5', padding: '3px 5px', borderRadius: 4, border: '1px solid #a7f3d0' }}>
+                                    <label style={{ fontSize: 8.5, fontWeight: 800, color: '#065f46', display: 'block' }}>SGST (₹)</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '2px 4px', textAlign: 'right', fontWeight: 700, color: '#065f46', border: '1px solid #6ee7b7', borderRadius: 3, background: '#fff', boxSizing: 'border-box' }}
+                                      value={l.sgstAmount}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].sgstAmount = e.target.value;
+                                        next[originalIndex].taxAmount = Number(next[originalIndex].cgstAmount) + Number(e.target.value) + Number(next[originalIndex].igstAmount);
+                                        next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </div>
+
+                                  <div style={{ background: '#eff6ff', padding: '3px 5px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+                                    <label style={{ fontSize: 8.5, fontWeight: 800, color: '#1e40af', display: 'block' }}>IGST (₹)</label>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '2px 4px', textAlign: 'right', fontWeight: 700, color: '#1e40af', border: '1px solid #93c5fd', borderRadius: 3, background: '#fff', boxSizing: 'border-box' }}
+                                      value={l.igstAmount}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].igstAmount = e.target.value;
+                                        next[originalIndex].taxAmount = Number(next[originalIndex].cgstAmount) + Number(next[originalIndex].sgstAmount) + Number(e.target.value);
+                                        next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </div>
+
+                                  <div style={{ background: '#e0f2fe', padding: '4px 6px', borderRadius: 4, border: '1px solid #bae6fd', textAlign: 'right' }}>
+                                    <span style={{ fontSize: 8.5, fontWeight: 800, color: '#0369a1', display: 'block' }}>GST TOTAL</span>
+                                    <span style={{ fontSize: 11.5, fontWeight: 850, color: '#0284c7' }}>
+                                      ₹{Number(l.taxAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ background: '#1e293b', padding: '4px 6px', borderRadius: 4, color: '#fff', textAlign: 'right' }}>
+                                    <span style={{ fontSize: 8.5, fontWeight: 700, color: '#94a3b8', display: 'block' }}>TOTAL AMOUNT</span>
+                                    <span style={{ fontSize: 12, fontWeight: 900, color: '#38bdf8' }}>
+                                      ₹{Number(l.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* MASTER CLASSIFICATION & ERP ROUTING */}
+                              <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px' }}>
+                                <span style={{ fontSize: 10, fontWeight: 800, color: '#334155', letterSpacing: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                                  ⚙️ Master Classification &amp; ERP Routing (A–V)
+                                </span>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 6 }}>
+                                  {/* Category Group */}
+                                  <div style={{ minWidth: 200, gridColumn: 'span 2' }}>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
+                                      CATEGORY GROUP (A–V)
+                                    </label>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', fontWeight: 650, borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.categoryCode}
+                                      onChange={(e) => handleCategoryGroupChange(originalIndex, e.target.value)}
+                                    >
+                                      {MASTER_CATEGORY_GROUPS.map((g) => (
+                                        <option key={g.groupCode} value={g.groupName}>
+                                          {g.groupName}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {/* Sub-Category */}
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
+                                      SUB-CATEGORY
+                                    </label>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.subCategory}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].subCategory = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      {subCategories.length > 0 ? (
+                                        subCategories.map((sub) => (
+                                          <option key={sub} value={sub}>
+                                            {sub}
+                                          </option>
+                                        ))
+                                      ) : (
+                                        <option value={l.subCategory || 'GENERAL'}>{l.subCategory || 'GENERAL'}</option>
+                                      )}
+                                    </select>
+                                  </div>
+
+                                  {/* ERP Destination */}
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
+                                      ERP DESTINATION
+                                    </label>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.destinationModule}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].destinationModule = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      {ERP_DESTINATION_MODULES.map((dest) => (
+                                        <option key={dest} value={dest}>
+                                          {dest}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {/* CapEx / OpEx */}
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
+                                      CAPEX / OPEX
+                                    </label>
+                                    <select
+                                      style={{
+                                        width: '100%',
+                                        fontSize: 10.5,
+                                        padding: '4px 6px',
+                                        fontWeight: 800,
+                                        color: l.capexOrOpex === 'CAPEX' ? '#b45309' : '#047857',
+                                        background: l.capexOrOpex === 'CAPEX' ? '#fef3c7' : '#d1fae5',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: 4,
+                                        boxSizing: 'border-box',
+                                      }}
+                                      value={l.capexOrOpex}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].capexOrOpex = e.target.value as 'CAPEX' | 'OPEX';
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      <option value="CAPEX">CAPEX</option>
+                                      <option value="OPEX">OPEX</option>
+                                    </select>
+                                  </div>
+
+                                  {/* Costing Head */}
+                                  <div>
+                                    <label style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
+                                      COSTING HEAD
+                                    </label>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', borderRadius: 4, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                                      value={l.costingHead}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].costingHead = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      {MASTER_COSTING_HEADS.map((head) => (
+                                        <option key={head} value={head}>
+                                          {head}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
+                          No line items match filter.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* 23-Column Responsive Table with Auto-Expanding Description and Tinted GST Columns */
+                    <div className="table-wrap" style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff' }}>
+                      <table style={{ minWidth: 2050, fontSize: 11 }}>
+                        <thead>
+                          <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                            <th style={{ width: 35, textAlign: 'center' }}>#</th>
+                            <th style={{ minWidth: 260 }}>DESCRIPTION (AUTO-EXPAND)</th>
+                            <th style={{ width: 110 }}>PART / ITEM NO</th>
+                            <th style={{ width: 90 }}>HSN / SAC</th>
+                            <th style={{ width: 65 }}>QTY</th>
+                            <th style={{ width: 55 }}>UNIT</th>
+                            <th style={{ width: 85 }}>RATE (₹)</th>
+                            <th style={{ width: 70 }}>DISCOUNT</th>
+                            <th style={{ width: 100, background: '#fef9c3' }}>TAXABLE (₹)</th>
+                            <th style={{ width: 65 }}>TAX %</th>
+                            <th style={{ width: 85, background: '#ecfdf5' }}>CGST (₹)</th>
+                            <th style={{ width: 85, background: '#ecfdf5' }}>SGST (₹)</th>
+                            <th style={{ width: 85, background: '#eff6ff' }}>IGST (₹)</th>
+                            <th style={{ width: 90, background: '#e0f2fe' }}>GST TOTAL</th>
+                            <th style={{ width: 115, background: '#f8fafc' }}>TOTAL AMOUNT (₹)</th>
+                            <th style={{ minWidth: 200 }}>CATEGORY GROUP (A-V)</th>
+                            <th style={{ minWidth: 160 }}>SUB-CATEGORY</th>
+                            <th style={{ minWidth: 140 }}>ERP DESTINATION</th>
+                            <th style={{ width: 85 }}>CAPEX / OPEX</th>
+                            <th style={{ minWidth: 140 }}>COSTING HEAD</th>
+                            <th style={{ width: 75, textAlign: 'center' }}>CONFIDENCE</th>
+                            <th style={{ width: 95, textAlign: 'center' }}>STATUS</th>
+                            <th style={{ width: 40, textAlign: 'center' }}>DEL</th>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {filteredLines.length ? (
+                            filteredLines.map((l) => {
+                              const originalIndex = editableLines.findIndex((item) => item.id === l.id);
+                              const activeGroup = MASTER_CATEGORY_GROUPS.find((g) => g.groupName === l.categoryCode);
+                              const subCategories = activeGroup?.categories || [];
+                              const isSelectedRow = selectedLineId === l.id;
+
+                              return (
+                                <tr
+                                  key={l.id}
+                                  onClick={() => setSelectedLineId(l.id)}
+                                  style={{
+                                    borderBottom: '1px solid #e2e8f0',
+                                    background: isSelectedRow ? '#f0f9ff' : undefined,
+                                  }}
+                                >
+                                  {/* Line No */}
+                                  <td style={{ textAlign: 'center', fontWeight: 800, color: isSelectedRow ? '#0284c7' : 'var(--muted)' }}>
+                                    {l.lineNo}
+                                  </td>
+
+                                  {/* Description (Auto-Expanding Multi-line Textarea) */}
+                                  <td>
+                                    <textarea
+                                      style={{
+                                        width: '100%',
+                                        minWidth: 250,
+                                        fontSize: 11,
+                                        padding: '4px 6px',
+                                        fontWeight: 650,
+                                        borderColor: isSelectedRow ? '#38bdf8' : '#cbd5e1',
+                                        borderRadius: 4,
+                                        resize: 'vertical',
+                                        lineHeight: 1.35,
+                                        minHeight: 44,
+                                        fontFamily: 'inherit',
+                                        boxSizing: 'border-box',
+                                      }}
+                                      rows={Math.max(2, Math.ceil((l.description?.length || 0) / 32))}
+                                      value={l.description}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].description = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </td>
+
+                                  {/* Part Number */}
+                                  <td>
+                                    <input
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', boxSizing: 'border-box' }}
+                                      value={l.partNumber}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].partNumber = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                      placeholder="Part ID"
+                                    />
+                                  </td>
+
+                                  {/* HSN */}
+                                  <td>
+                                    <input
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', boxSizing: 'border-box' }}
+                                      value={l.hsnCode}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].hsnCode = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                      placeholder="HSN"
+                                    />
+                                  </td>
+
+                                  {/* Quantity */}
+                                  <td>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right', boxSizing: 'border-box' }}
+                                      value={l.quantity}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { quantity: e.target.value })}
+                                    />
+                                  </td>
+
+                                  {/* Unit */}
+                                  <td>
+                                    <input
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', boxSizing: 'border-box' }}
+                                      value={l.unit}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].unit = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </td>
+
+                                  {/* Rate */}
+                                  <td>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right', boxSizing: 'border-box' }}
+                                      value={l.unitRate}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { unitRate: e.target.value })}
+                                    />
+                                  </td>
+
+                                  {/* Discount */}
+                                  <td>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right', boxSizing: 'border-box' }}
+                                      value={l.discount}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { discount: e.target.value })}
+                                    />
+                                  </td>
+
+                                  {/* Taxable Value */}
+                                  <td style={{ background: '#fefce8' }}>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', fontWeight: 750, textAlign: 'right', color: '#92400e', boxSizing: 'border-box' }}
+                                      value={l.taxableAmount}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { taxableAmount: e.target.value })}
+                                    />
+                                  </td>
+
+                                  {/* Tax Rate % */}
+                                  <td>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right', boxSizing: 'border-box' }}
+                                      value={l.taxRate}
+                                      onChange={(e) => updateLineCalculation(originalIndex, { taxRate: e.target.value })}
+                                    />
+                                  </td>
+
+                                  {/* CGST */}
+                                  <td style={{ background: '#f0fdf4' }}>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right', fontWeight: 650, color: '#065f46', boxSizing: 'border-box' }}
+                                      value={l.cgstAmount}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].cgstAmount = e.target.value;
+                                        next[originalIndex].taxAmount = Number(e.target.value) + Number(next[originalIndex].sgstAmount) + Number(next[originalIndex].igstAmount);
+                                        next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </td>
+
+                                  {/* SGST */}
+                                  <td style={{ background: '#f0fdf4' }}>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right', fontWeight: 650, color: '#065f46', boxSizing: 'border-box' }}
+                                      value={l.sgstAmount}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].sgstAmount = e.target.value;
+                                        next[originalIndex].taxAmount = Number(next[originalIndex].cgstAmount) + Number(e.target.value) + Number(next[originalIndex].igstAmount);
+                                        next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </td>
+
+                                  {/* IGST */}
+                                  <td style={{ background: '#eff6ff' }}>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', textAlign: 'right', fontWeight: 650, color: '#1e40af', boxSizing: 'border-box' }}
+                                      value={l.igstAmount}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].igstAmount = e.target.value;
+                                        next[originalIndex].taxAmount = Number(next[originalIndex].cgstAmount) + Number(next[originalIndex].sgstAmount) + Number(e.target.value);
+                                        next[originalIndex].totalAmount = Number(next[originalIndex].taxableAmount) + Number(next[originalIndex].taxAmount);
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </td>
+
+                                  {/* GST Total */}
+                                  <td style={{ textAlign: 'right', fontWeight: 800, padding: '4px 8px', color: '#0369a1', background: '#e0f2fe' }}>
+                                    ₹{Number(l.taxAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </td>
+
+                                  {/* Total Amount */}
+                                  <td style={{ background: '#f8fafc' }}>
+                                    <input
+                                      type="number"
+                                      style={{ width: '100%', fontSize: 11, padding: '4px 6px', fontWeight: 800, textAlign: 'right', color: 'var(--navy)', boxSizing: 'border-box' }}
+                                      value={l.totalAmount}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].totalAmount = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    />
+                                  </td>
+
+                                  {/* Category Group */}
+                                  <td>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', fontWeight: 650, boxSizing: 'border-box' }}
+                                      value={l.categoryCode}
+                                      onChange={(e) => handleCategoryGroupChange(originalIndex, e.target.value)}
+                                    >
+                                      {MASTER_CATEGORY_GROUPS.map((g) => (
+                                        <option key={g.groupCode} value={g.groupName}>
+                                          {g.groupName}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+
+                                  {/* Sub-Category */}
+                                  <td>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', boxSizing: 'border-box' }}
+                                      value={l.subCategory}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].subCategory = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      {subCategories.length > 0 ? (
+                                        subCategories.map((sub) => (
+                                          <option key={sub} value={sub}>
+                                            {sub}
+                                          </option>
+                                        ))
+                                      ) : (
+                                        <option value={l.subCategory || 'GENERAL'}>{l.subCategory || 'GENERAL'}</option>
+                                      )}
+                                    </select>
+                                  </td>
+
+                                  {/* ERP Destination */}
+                                  <td>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', boxSizing: 'border-box' }}
+                                      value={l.destinationModule}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].destinationModule = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      {ERP_DESTINATION_MODULES.map((dest) => (
+                                        <option key={dest} value={dest}>
+                                          {dest}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+
+                                  {/* CapEx / OpEx */}
+                                  <td style={{ textAlign: 'center' }}>
+                                    <select
+                                      style={{
+                                        fontSize: 10,
+                                        padding: '3px 6px',
+                                        fontWeight: 800,
+                                        color: l.capexOrOpex === 'CAPEX' ? '#b45309' : '#047857',
+                                        background: l.capexOrOpex === 'CAPEX' ? '#fef3c7' : '#d1fae5',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: 4,
+                                        boxSizing: 'border-box',
+                                      }}
+                                      value={l.capexOrOpex}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].capexOrOpex = e.target.value as 'CAPEX' | 'OPEX';
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      <option value="CAPEX">CAPEX</option>
+                                      <option value="OPEX">OPEX</option>
+                                    </select>
+                                  </td>
+
+                                  {/* Costing Head */}
+                                  <td>
+                                    <select
+                                      style={{ width: '100%', fontSize: 10.5, padding: '4px 6px', boxSizing: 'border-box' }}
+                                      value={l.costingHead}
+                                      onChange={(e) => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].costingHead = e.target.value;
+                                        setEditableLines(next);
+                                      }}
+                                    >
+                                      {MASTER_COSTING_HEADS.map((head) => (
+                                        <option key={head} value={head}>
+                                          {head}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+
+                                  {/* Confidence */}
+                                  <td style={{ textAlign: 'center' }}>
+                                    <span className={`badge ${l.confidenceStatus === 'HIGH' ? 'green' : 'amber'}`} style={{ fontSize: 9 }}>
+                                      {(Number(l.confidence || 0.9) * 100).toFixed(0)}%
+                                    </span>
+                                  </td>
+
+                                  {/* Status */}
+                                  <td style={{ textAlign: 'center' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = [...editableLines];
+                                        next[originalIndex].reviewStatus =
+                                          next[originalIndex].reviewStatus === 'VERIFIED' ? 'PENDING REVIEW' : 'VERIFIED';
+                                        setEditableLines(next);
+                                      }}
+                                      style={{
+                                        border: 'none',
+                                        background: l.reviewStatus === 'VERIFIED' ? '#dcfce7' : '#fef9c3',
+                                        color: l.reviewStatus === 'VERIFIED' ? '#15803d' : '#a16207',
+                                        fontWeight: 750,
+                                        fontSize: 9.5,
+                                        padding: '3px 6px',
+                                        borderRadius: 4,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {l.reviewStatus === 'VERIFIED' ? '✓ VERIFIED' : '⏳ PENDING'}
+                                    </button>
+                                  </td>
+
+                                  {/* Delete Action */}
+                                  <td style={{ textAlign: 'center' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = editableLines.filter((_, i) => i !== originalIndex);
+                                        setEditableLines(next);
+                                      }}
+                                      style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: '#ef4444',
+                                        cursor: 'pointer',
+                                        fontSize: 13,
+                                        padding: 2,
+                                      }}
+                                      title="Delete line"
+                                    >
+                                      ✕
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan={23}><div className="empty">No line items match filter.</div></td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
                   {/* Reconciliation Totals Banner */}
                   <div
