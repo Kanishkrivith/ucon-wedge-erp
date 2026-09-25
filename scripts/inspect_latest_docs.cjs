@@ -9,17 +9,17 @@ const pool = new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: fals
 
 async function check() {
   const docs = await pool.query(
-    `SELECT d.id, d.original_filename, d.document_number, d.document_type, d.document_date, 
-            v.canonical_name as vendor, d.rejection_reason, d.status, d.ai_confidence,
-            (SELECT count(*) FROM document_extractions WHERE document_id = d.id) as fields_count,
-            (SELECT count(*) FROM document_line_items WHERE document_id = d.id) as lines_count,
-            (SELECT length(ocr_text) FROM document_pages WHERE document_id = d.id LIMIT 1) as page_text_len
-     FROM documents d
-     LEFT JOIN vendors v ON v.id = d.vendor_id
-     ORDER BY d.created_at DESC LIMIT 8`
+    "SELECT id, original_filename, document_number, ai_confidence, status, created_at, rejection_reason FROM documents WHERE original_filename = '118.pdf' ORDER BY created_at DESC"
   );
-  console.log('--- RECENT DOCUMENTS IN DATABASE ---');
+  console.log('--- 118.pdf DOCUMENTS ---');
   console.table(docs.rows);
+
+  const recent = await pool.query(
+    "SELECT id, original_filename, document_number, ai_confidence, status, created_at, rejection_reason FROM documents ORDER BY created_at DESC LIMIT 5"
+  );
+  console.log('\n--- 5 MOST RECENT DOCUMENTS ---');
+  console.table(recent.rows);
+
   await pool.end();
 }
 

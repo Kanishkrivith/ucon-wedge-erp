@@ -807,17 +807,15 @@ function buildLines(text: string, defaultClassificationCode: string, subtotalHin
 
 export async function processDocumentOCR(filePath: string, mimeType: string, bufferOverride?: Buffer): Promise<DocumentAIResult> {
   // 1. Primary AI Vision Engine: Google Gemini Flash (98%+ accuracy on complex scans & multi-line tables)
-  const apiKey =
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-
-  if (apiKey) {
-    try {
-      const { extractDocumentWithGeminiFlash } = await import('./gemini-flash-extractor');
-      return await extractDocumentWithGeminiFlash(filePath, mimeType, bufferOverride);
-    } catch (geminiErr: any) {
-      console.warn('Gemini Flash extraction failed, falling back to local OCR engine:', geminiErr?.message || geminiErr);
+  try {
+    const { extractDocumentWithGeminiFlash } = await import('./gemini-flash-extractor');
+    return await extractDocumentWithGeminiFlash(filePath, mimeType, bufferOverride);
+  } catch (geminiErr: any) {
+    console.warn('Gemini Flash extraction error:', geminiErr?.message || geminiErr);
+    // In serverless, do NOT fallback to empty local OCR for scanned PDFs/images
+    const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+    if (isServerless) {
+      throw geminiErr;
     }
   }
 

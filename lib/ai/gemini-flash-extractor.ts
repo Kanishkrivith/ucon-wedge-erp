@@ -11,17 +11,34 @@ export interface GeminiExtractionResult extends DocumentAIResult {
   engine: 'GEMINI_2_FLASH';
 }
 
-function getGeminiApiKey(): string | null {
-  return (
+let cachedDbApiKey: string | null = null;
+
+export async function getGeminiApiKey(): Promise<string | null> {
+  const envKey =
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
-    null
-  );
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (envKey) return envKey;
+
+  if (cachedDbApiKey) return cachedDbApiKey;
+
+  try {
+    const { pool } = await import('@/lib/db');
+    const res = await pool.query("SELECT value FROM system_config WHERE key = 'GEMINI_API_KEY' LIMIT 1");
+    if (res.rows[0]?.value) {
+      cachedDbApiKey = res.rows[0].value;
+      return cachedDbApiKey;
+    }
+  } catch (err) {
+    console.warn('Could not read GEMINI_API_KEY from database system_config:', err);
+  }
+
+  return null;
 }
 
-export function isGeminiConfigured(): boolean {
-  return !!getGeminiApiKey();
+export async function isGeminiConfigured(): Promise<boolean> {
+  const k = await getGeminiApiKey();
+  return !!k;
 }
 
 /**
@@ -32,10 +49,10 @@ export async function extractDocumentWithGeminiFlash(
   mimeType: string,
   bufferOverride?: Buffer
 ): Promise<DocumentAIResult> {
-  const apiKey = getGeminiApiKey();
+  const apiKey = await getGeminiApiKey();
   if (!apiKey) {
     throw new Error(
-      'GEMINI_API_KEY is not configured. Please add your free GEMINI_API_KEY to .env.local or Vercel environment variables.'
+      'GEMINI_API_KEY is not configured in environment or database system_config.'
     );
   }
 

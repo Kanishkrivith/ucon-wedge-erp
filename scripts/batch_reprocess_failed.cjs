@@ -341,7 +341,7 @@ async function run() {
   const docs = await pool.query(
     `SELECT id, original_filename, mime_type, file_data 
      FROM documents 
-     WHERE original_filename IN ('3579-2627.pdf', '118.pdf', '113.pdf', 'LLP-3023-202526.pdf')
+     WHERE original_filename IN ('3579-2627.pdf', '118.pdf', '113.pdf', 'LLP-3023-202526.pdf', '2526-035.pdf')
      ORDER BY original_filename`
   );
 
