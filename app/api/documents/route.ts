@@ -68,6 +68,69 @@ function mapToDocumentTypeEnum(rawType?: string | null): string {
   return 'OTHER';
 }
 
+function sanitizeDateForPg(rawDate: any): string | null {
+  if (!rawDate) return null;
+  const s = String(rawDate).trim();
+  if (
+    !s ||
+    s === 'NOT AVAILABLE' ||
+    s === 'NEEDS REVIEW' ||
+    s === 'null' ||
+    s === 'undefined' ||
+    s === 'N/A' ||
+    s.toUpperCase().includes('PENDING') ||
+    s.toUpperCase().includes('AVAILABLE')
+  ) {
+    return null;
+  }
+  // YYYY-MM-DD
+  const ymd = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (ymd) {
+    const y = Number(ymd[1]);
+    const m = Number(ymd[2]);
+    const d = Number(ymd[3]);
+    if (y >= 1970 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+  // DD/MM/YYYY or DD-MM-YYYY
+  const dmy = s.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
+  if (dmy) {
+    let y = dmy[3];
+    if (y.length === 2) y = `20${y}`;
+    const yr = Number(y);
+    const m = Number(dmy[2]);
+    const d = Number(dmy[1]);
+    if (yr >= 1970 && yr <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${yr}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const yr = parsed.getFullYear();
+    if (yr >= 1970 && yr <= 2100) {
+      return parsed.toISOString().split('T')[0];
+    }
+  }
+  return null;
+}
+
+function sanitizeTextForPg(val: any): string | null {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (
+    !s ||
+    s === 'NOT AVAILABLE' ||
+    s === 'NEEDS REVIEW' ||
+    s === 'null' ||
+    s === 'undefined' ||
+    s === 'N/A'
+  ) {
+    return null;
+  }
+  return s;
+}
+
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();
@@ -224,9 +287,9 @@ export async function POST(req: Request) {
         ? processExcelDocument(filePath, buffer)
         : processDocumentOCR(filePath, mimeType, buffer);
 
-      // Race with 9.5s timeout so POST /api/documents always returns safely within serverless limits
+      // Race with 25s timeout so POST /api/documents always returns safely within serverless limits
       const timeoutPromise = new Promise<{ timedOut: true }>((resolve) =>
-        setTimeout(() => resolve({ timedOut: true }), 9500)
+        setTimeout(() => resolve({ timedOut: true }), 25000)
       );
 
       const raceResult = await Promise.race([ocrPromise, timeoutPromise]);
@@ -327,11 +390,15 @@ export async function POST(req: Request) {
         ['document_number', 'DOCUMENT_NUMBER', 'invoice_number', 'INVOICE_NUMBER'].includes(f.fieldName)
       )?.normalizedValue;
 
+      const safeDate = sanitizeDateForPg(dateField);
+      const safeNumber = sanitizeTextForPg(numberField);
+      const safeVendor = sanitizeTextForPg(vendorField);
+
       let vendorId = null;
-      if (vendorField) {
-        let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${vendorField}%`]);
+      if (safeVendor) {
+        let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${safeVendor}%`]);
         if (!vRes.rows[0]) {
-          const firstWord = vendorField.split(' ')[0];
+          const firstWord = safeVendor.split(' ')[0];
           if (firstWord && firstWord.length > 2) {
             vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${firstWord}%`]);
           }
@@ -341,7 +408,7 @@ export async function POST(req: Request) {
         } else {
           const newV = await pool.query(
             `INSERT INTO vendors (canonical_name, category) VALUES ($1, 'SUBCONTRACT') RETURNING id`,
-            [vendorField]
+            [safeVendor]
           );
           vendorId = newV.rows[0].id;
         }
@@ -357,15 +424,17 @@ export async function POST(req: Request) {
              document_number = $6,
              vendor_id = $7,
              document_type = $8,
-             page_count = $9
+             page_count = $9,
+             status = 'PENDING_REVIEW',
+             rejection_reason = NULL
          WHERE id = $10`,
         [
           ocrResult.classificationCode,
           ocrResult.destinationModule,
           ocrResult.destinationRecordType,
           ocrResult.confidence,
-          dateField || null,
-          numberField || null,
+          safeDate,
+          safeNumber,
           vendorId,
           mapToDocumentTypeEnum(ocrResult.documentType),
           ocrResult.pages?.length || 1,
@@ -772,21 +841,25 @@ export async function PATCH(req: Request) {
       }
 
       // Resolve vendor, doc number, date
-      const vendorField = ocrResult.fields.find((f) =>
+      const vendorField = ocrResult.fields.find((f: any) =>
         ['vendor', 'vendor_name', 'VENDOR_NAME'].includes(f.fieldName)
       )?.normalizedValue;
-      const dateField = ocrResult.fields.find((f) =>
+      const dateField = ocrResult.fields.find((f: any) =>
         ['document_date', 'DOCUMENT_DATE', 'date'].includes(f.fieldName)
       )?.normalizedValue;
-      const numberField = ocrResult.fields.find((f) =>
+      const numberField = ocrResult.fields.find((f: any) =>
         ['document_number', 'DOCUMENT_NUMBER', 'invoice_number', 'INVOICE_NUMBER'].includes(f.fieldName)
       )?.normalizedValue;
 
+      const safeDate = sanitizeDateForPg(dateField);
+      const safeNumber = sanitizeTextForPg(numberField);
+      const safeVendor = sanitizeTextForPg(vendorField);
+
       let vendorId = null;
-      if (vendorField) {
-        let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${vendorField}%`]);
+      if (safeVendor) {
+        let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${safeVendor}%`]);
         if (!vRes.rows[0]) {
-          const firstWord = vendorField.split(' ')[0];
+          const firstWord = safeVendor.split(' ')[0];
           if (firstWord && firstWord.length > 2) {
             vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${firstWord}%`]);
           }
@@ -796,7 +869,7 @@ export async function PATCH(req: Request) {
         } else {
           const newV = await pool.query(
             `INSERT INTO vendors (canonical_name, category) VALUES ($1, 'SUBCONTRACT') RETURNING id`,
-            [vendorField]
+            [safeVendor]
           );
           vendorId = newV.rows[0].id;
         }
@@ -812,15 +885,17 @@ export async function PATCH(req: Request) {
              document_number = $6,
              vendor_id = $7,
              document_type = $8,
-             page_count = $9
+             page_count = $9,
+             status = 'PENDING_REVIEW',
+             rejection_reason = NULL
          WHERE id = $10`,
         [
           ocrResult.classificationCode,
           ocrResult.destinationModule,
           ocrResult.destinationRecordType,
           ocrResult.confidence,
-          dateField || null,
-          numberField || null,
+          safeDate,
+          safeNumber,
           vendorId,
           mapToDocumentTypeEnum(ocrResult.documentType),
           ocrResult.pages?.length || 1,

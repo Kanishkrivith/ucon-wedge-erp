@@ -122,11 +122,13 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
 
   // Call Gemini Flash models (prioritizing ultra-fast, high-availability models with timeout guard)
   const models = [
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash',
     'gemini-3.5-flash-lite',
-    'gemini-3.6-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-3.5-flash',
+    'gemini-2.5-flash-lite',
     'gemini-flash-latest',
+    'gemini-3.7-flash',
+    'gemini-3.5-flash',
   ];
   let lastError: any = null;
   let rawResponseText = '';
@@ -159,7 +161,7 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(18000),
       });
 
       if (!res.ok) {
@@ -319,18 +321,41 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
   const topCategory = lines[0]?.categoryCode || 'A. RAW MATERIAL';
   const topDestination = lines[0]?.destinationModule || 'PURCHASE';
 
+  const ocrTextStream =
+    parsed.full_text_summary && parsed.full_text_summary.length > 50
+      ? parsed.full_text_summary
+      : [
+          `=======================================================`,
+          `DOCUMENT TYPE: ${docType}`,
+          `DOCUMENT NUMBER: ${docNum || 'N/A'}`,
+          `DOCUMENT DATE: ${docDate || 'N/A'}`,
+          `VENDOR: ${vendorName || 'N/A'}  (GSTIN: ${vendorGstin || 'N/A'})`,
+          `CUSTOMER: ${custName || 'N/A'}  (GSTIN: ${custGstin || 'N/A'})`,
+          `TAXABLE AMOUNT: ₹${taxableVal || 0}`,
+          `GST AMOUNT (CGST+SGST+IGST): ₹${totalTax || 0}`,
+          `TOTAL INVOICE AMOUNT: ₹${totalInv || 0}`,
+          `REVERSE CHARGE: ${parsed.reverse_charge || 'NO'}`,
+          `=======================================================`,
+          '',
+          `--- ITEMIZED LINES EXTRACTED (${lines.length} ITEMS) ---`,
+          ...lines.map(
+            (l) =>
+              `[Line ${l.lineNo}] ${l.description} | Qty: ${l.quantity} ${l.unit} @ ₹${l.unitRate} | HSN: ${l.hsnCode || 'N/A'} | Taxable: ₹${l.taxableAmount} | Tax: ₹${l.taxAmount} (${l.taxRate}%) | Total: ₹${l.totalAmount} | Category: ${l.categoryCode} -> ${l.destinationModule} (${l.capexOrOpex})`
+          ),
+        ].join('\n');
+
   return {
     fields,
     lines,
     pages: [
       {
         pageNo: 1,
-        text: parsed.full_text_summary || JSON.stringify(parsed, null, 2),
+        text: ocrTextStream,
       },
     ],
     classificationCode: topCategory,
     destinationModule: topDestination,
-    destinationRecordType: 'Document Ingestion (Gemini 2.0 Flash)',
+    destinationRecordType: 'Document Ingestion (Gemini Flash Vision)',
     confidence: 0.98,
     documentType: (parsed.document_type || 'INVOICE').toUpperCase(),
   };
