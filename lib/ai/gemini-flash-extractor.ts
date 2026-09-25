@@ -120,14 +120,13 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
   "full_text_summary": "Extracted OCR text from the document"
 }`;
 
-  // Call Gemini Flash models (automatically falls back on 429 quota or errors)
+  // Call Gemini Flash models (prioritizing ultra-fast, high-availability models with timeout guard)
   const models = [
-    'gemini-flash-lite-latest',
-    'gemini-3.5-flash',
-    'gemini-3.7-flash',
-    'gemini-3.8-flash',
-    'gemini-3.6-flash',
     'gemini-3.5-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-flash-latest',
   ];
   let lastError: any = null;
   let rawResponseText = '';
@@ -160,6 +159,7 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(6000),
       });
 
       if (!res.ok) {

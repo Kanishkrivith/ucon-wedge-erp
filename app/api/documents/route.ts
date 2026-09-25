@@ -218,11 +218,31 @@ export async function POST(req: Request) {
 
     const docId = docResult.rows[0].id;
 
-    // Run OCR / parsing in background/synchronously
+    // Run OCR / parsing with a safe timeout race to prevent serverless timeouts
     try {
-      const ocrResult = isExcel
-        ? await processExcelDocument(filePath, buffer)
-        : await processDocumentOCR(filePath, mimeType, buffer);
+      const ocrPromise = isExcel
+        ? processExcelDocument(filePath, buffer)
+        : processDocumentOCR(filePath, mimeType, buffer);
+
+      // Race with 9.5s timeout so POST /api/documents always returns safely within serverless limits
+      const timeoutPromise = new Promise<{ timedOut: true }>((resolve) =>
+        setTimeout(() => resolve({ timedOut: true }), 9500)
+      );
+
+      const raceResult = await Promise.race([ocrPromise, timeoutPromise]);
+
+      if ('timedOut' in raceResult) {
+        console.warn(`[OCR Timeout Guard] Ingestion OCR exceeded 9.5s for doc ${docId}; returning safe ingest response.`);
+        return json({
+          ok: true,
+          documentId: docId,
+          extracted: false,
+          needsScan: true,
+          message: 'Document saved to vault. AI Vision extraction queued.',
+        });
+      }
+
+      const ocrResult = raceResult as any;
 
       // Save OCR extractions
       for (const field of ocrResult.fields) {
@@ -297,13 +317,13 @@ export async function POST(req: Request) {
       }
 
       // Extract vendor, doc number, date for updating header
-      const vendorField = ocrResult.fields.find((f) =>
+      const vendorField = ocrResult.fields.find((f: any) =>
         ['vendor', 'vendor_name', 'VENDOR_NAME'].includes(f.fieldName)
       )?.normalizedValue;
-      const dateField = ocrResult.fields.find((f) =>
+      const dateField = ocrResult.fields.find((f: any) =>
         ['document_date', 'DOCUMENT_DATE', 'date'].includes(f.fieldName)
       )?.normalizedValue;
-      const numberField = ocrResult.fields.find((f) =>
+      const numberField = ocrResult.fields.find((f: any) =>
         ['document_number', 'DOCUMENT_NUMBER', 'invoice_number', 'INVOICE_NUMBER'].includes(f.fieldName)
       )?.normalizedValue;
 
@@ -358,9 +378,10 @@ export async function POST(req: Request) {
         `UPDATE documents SET rejection_reason = $1 WHERE id = $2`,
         [`OCR warning: ${ocrErr?.message || String(ocrErr)}`, docId]
       ).catch(() => {});
+      return json({ ok: true, documentId: docId, extracted: false, needsScan: true });
     }
 
-    return json({ ok: true, documentId: docId });
+    return json({ ok: true, documentId: docId, extracted: true });
   } catch (error: any) {
     console.error('Document upload error:', error);
     return json({ error: error.message || 'Error processing document' }, { status: 500 });
@@ -639,9 +660,9 @@ export async function PATCH(req: Request) {
       const fsSync = await import('node:fs');
       if (!filePath || !fsSync.existsSync(/*turbopackIgnore: true*/ filePath)) {
         const baseName = path.basename(doc.storage_uri || doc.original_filename);
-        const cand1 = path.join(storageRoot, baseName);
+        const cand1 = path.join(/*turbopackIgnore: true*/ storageRoot, baseName);
         if (fsSync.existsSync(/*turbopackIgnore: true*/ cand1)) filePath = cand1;
-        const candTmp = path.join(os.tmpdir(), 'ucon_storage', 'documents', baseName);
+        const candTmp = path.join(/*turbopackIgnore: true*/ os.tmpdir(), 'ucon_storage', 'documents', baseName);
         if (fsSync.existsSync(/*turbopackIgnore: true*/ candTmp)) filePath = candTmp;
       }
       // If file not found on disk, attempt to hydrate from base64 file_data stored in PostgreSQL

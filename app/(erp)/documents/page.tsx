@@ -405,9 +405,27 @@ export default function DocumentsPage() {
       if (!res.ok) {
         setMessage(`Upload error: ${data.error || 'Failed to upload'}`);
       } else {
-        setMessage('Document ingested and canonical OCR extractions completed successfully.');
         form.reset();
         await load();
+        if (data.needsScan) {
+          setMessage('⚡ Document safely stored in vault! Running AI Vision extraction in background...');
+          if (data.documentId) {
+            fetch('/api/documents', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: data.documentId, action: 'reprocess' }),
+            })
+              .then(async (reRes) => {
+                if (reRes.ok) {
+                  setMessage('Document ingested and canonical OCR extractions completed successfully.');
+                  await load();
+                }
+              })
+              .catch(() => {});
+          }
+        } else {
+          setMessage('Document ingested and canonical OCR extractions completed successfully.');
+        }
       }
     } catch (err: any) {
       setMessage(`Upload error: ${err.message}`);

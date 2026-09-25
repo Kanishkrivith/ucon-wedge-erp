@@ -851,36 +851,50 @@ export async function processDocumentOCR(filePath: string, mimeType: string, buf
         console.warn('Digital text extraction warning:', digitalErr);
       }
 
-      // If no digital text found (e.g. scanned photocopy), fallback to raster OCR
+      // If no digital text found (e.g. scanned photocopy), fallback to raster OCR if not in serverless
       if (digitalCharsTotal < 30) {
         pages.length = 0; // Clear any partial entries
-        const fsSync = await import('node:fs');
-        const pubLang = path.join(process.cwd(), 'public');
-        const langPath = fsSync.existsSync(path.join(pubLang, 'eng.traineddata.gz')) ? pubLang : process.cwd();
-        worker = await createWorker('eng', 1, { langPath, cachePath: langPath });
-
-        const ocrPages = Math.min(totalPages, 2);
-        for (let pageNo = 1; pageNo <= ocrPages; pageNo += 1) {
+        const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+        if (!isServerless) {
           try {
-            const imgBuffer = await renderPageAsImage(new Uint8Array(fileBuffer), pageNo, {
-              scale: 1.5,
-              canvasImport: () => import('@napi-rs/canvas'),
-            });
-            const result = await worker.recognize(Buffer.from(imgBuffer));
-            pages.push({ pageNo, text: result.data.text || '' });
-          } catch (pageErr) {
-            console.warn(`Error on OCR page ${pageNo}:`, pageErr);
+            const fsSync = await import('node:fs');
+            const pubLang = path.join(process.cwd(), 'public');
+            const langPath = fsSync.existsSync(path.join(pubLang, 'eng.traineddata.gz')) ? pubLang : process.cwd();
+            worker = await createWorker('eng', 1, { langPath, cachePath: langPath });
+
+            const ocrPages = Math.min(totalPages, 2);
+            for (let pageNo = 1; pageNo <= ocrPages; pageNo += 1) {
+              try {
+                const imgBuffer = await renderPageAsImage(new Uint8Array(fileBuffer), pageNo, {
+                  scale: 1.5,
+                  canvasImport: () => import('@napi-rs/canvas'),
+                });
+                const result = await worker.recognize(Buffer.from(imgBuffer));
+                pages.push({ pageNo, text: result.data.text || '' });
+              } catch (pageErr) {
+                console.warn(`Error on OCR page ${pageNo}:`, pageErr);
+              }
+            }
+          } catch (tessErr) {
+            console.warn('Tesseract fallback skipped/failed:', tessErr);
           }
         }
       }
     } else {
       // Direct image file OCR (JPG / PNG)
-      const fsSync = await import('node:fs');
-      const pubLang = path.join(process.cwd(), 'public');
-      const langPath = fsSync.existsSync(path.join(pubLang, 'eng.traineddata.gz')) ? pubLang : process.cwd();
-      worker = await createWorker('eng', 1, { langPath, cachePath: langPath });
-      const result = await worker.recognize(filePath);
-      pages.push({ pageNo: 1, text: result.data.text || '' });
+      const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+      if (!isServerless) {
+        try {
+          const fsSync = await import('node:fs');
+          const pubLang = path.join(process.cwd(), 'public');
+          const langPath = fsSync.existsSync(path.join(pubLang, 'eng.traineddata.gz')) ? pubLang : process.cwd();
+          worker = await createWorker('eng', 1, { langPath, cachePath: langPath });
+          const result = await worker.recognize(filePath);
+          pages.push({ pageNo: 1, text: result.data.text || '' });
+        } catch (tessErr) {
+          console.warn('Tesseract image OCR skipped/failed:', tessErr);
+        }
+      }
     }
   } finally {
     if (worker) {
