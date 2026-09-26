@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 const nav = [
   ['/dashboard', '⌂', 'Command Center'],
+  ['/routing', '⇄', 'Routing & Flow'],
   ['/production', '⚙', 'Production (15 Stages)'],
   ['/inventory', '▦', 'Inventory & Stock'],
   ['/procurement', '◈', 'Purchase & Vendors'],
