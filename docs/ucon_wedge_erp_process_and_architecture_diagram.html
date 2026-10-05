@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UCON Wedge ERP v2 - Architectural Flowchart & Database Model</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .grid-bg {
+      background-size: 24px 24px;
+      background-image: radial-gradient(circle, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
+    }
+    .dark .grid-bg {
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    }
+    .glow-box {
+      box-shadow: 0 0 20px -5px rgba(59, 130, 246, 0.3);
+    }
+    .glow-box-amber {
+      box-shadow: 0 0 20px -5px rgba(245, 158, 11, 0.3);
+    }
+    .glow-box-emerald {
+      box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.3);
+    }
+    .glow-box-purple {
+      box-shadow: 0 0 20px -5px rgba(168, 85, 247, 0.3);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.5);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.8);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col grid-bg selection:bg-blue-600 selection:text-white">
+
+  <!-- Top Header Navigation Bar (Eraser.io Style) -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-50 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 font-bold text-white text-lg">
+        U
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-slate-100 text-base tracking-tight">UCON WEDGE ERP v2</h1>
+          <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">Eraser Architecture</span>
+          <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live Sync</span>
+        </div>
+        <p class="text-xs text-slate-400">Complete Process Routing, Digital Thread Traceability & Database Architecture</p>
+      </div>
+    </div>
+
+    <!-- Active Navigation Tabs -->
+    <div class="flex items-center bg-slate-950/80 p-1 rounded-xl border border-slate-800 shadow-inner">
+      <button onclick="switchTab('routing')" id="tab-routing" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-white bg-blue-600 shadow-sm">
+        1. Process Routing Flow
+      </button>
+      <button onclick="switchTab('reconciliation')" id="tab-reconciliation" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200">
+        2. 20-Ton Inward Traceability
+      </button>
+      <button onclick="switchTab('maintenance')" id="tab-maintenance" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200">
+        3. Tool Life & Machine Maintenance
+      </button>
+      <button onclick="switchTab('erd')" id="tab-erd" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200">
+        4. Database Schema (ERD)
+      </button>
+      <button onclick="switchTab('code')" id="tab-code" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200">
+        5. Eraser.io Code
+      </button>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center gap-2">
+      <button onclick="resetZoom()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1.5 border border-slate-700 transition">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        Reset Canvas
+      </button>
+      <a href="https://uconwedgeerp.vercel.app/documents" target="_blank" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow-sm transition flex items-center gap-1.5">
+        <span>Launch Web App</span>
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Canvas Container -->
+  <main class="flex-1 p-6 overflow-auto" id="canvas-container">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: PROCESS ROUTING FLOW (Eraser.io Architecture Diagram) -->
+    <!-- ========================================================================= -->
+    <div id="view-routing" class="space-y-8 max-w-7xl mx-auto">
+      
+      <!-- Stage 1 Banner -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            End-to-End Manufacturing Routing Architecture
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Physical Material Routing, Transport DCs, Machining Multi-Vendor Mesh, Heat Treatment & Load Testing Verification</p>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-slate-400">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-500/20 border border-blue-500"></span> Raw Steel</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-500/20 border border-amber-500"></span> Subcontract Cutting / CNC</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-purple-500/20 border border-purple-500"></span> UCON In-House Line</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500"></span> Heat Treatment & Dispatch</div>
+        </div>
+      </div>
+
+      <!-- Process Diagram Flow Wires Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+        <!-- 1. RAW MATERIAL INWARD CARD -->
+        <div class="rounded-xl border border-blue-500/30 bg-slate-900/80 p-5 glow-box relative flex flex-col justify-between">
+          <div class="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-blue-600 text-white uppercase shadow-sm">
+            STAGE 01 : INWARD
+          </div>
+          <div class="space-y-3 mt-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-blue-400">NG Sales / Steel Magic</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono">20MnCr5 25mm</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">Raw Steel Bar Inflow</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Received in bundles/tons (e.g. 20 Tons) with Tax Invoice (e.g. #3207, #3208). Heat/lot number captured.
+            </p>
+            <div class="bg-slate-950/70 rounded-lg p-2.5 border border-slate-800 space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between text-slate-400"><span>Spectro Test:</span> <span class="text-emerald-400 font-semibold">PASS (Techmat)</span></div>
+              <div class="flex justify-between text-slate-400"><span>Weight Check:</span> <span class="text-blue-300">Weighbridge Slips</span></div>
+              <div class="flex justify-between text-slate-400"><span>Chemical Comp:</span> <span class="text-slate-200">C: 0.17-0.22, Mn: 1.1-1.4</span></div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Doc Link: <span class="text-slate-200 font-mono">Invoice #3207</span></span>
+            <span class="text-blue-400 font-semibold">100% Approved</span>
+          </div>
+        </div>
+
+        <!-- 2. SRI MURUGAN CUTTING CARD -->
+        <div class="rounded-xl border border-amber-500/30 bg-slate-900/80 p-5 glow-box-amber relative flex flex-col justify-between">
+          <div class="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-amber-600 text-white uppercase shadow-sm">
+            STAGE 02 : CUTTING
+          </div>
+          <div class="space-y-3 mt-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-amber-400">Sri Murugan Industries</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono">DC Out & In</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">780 mm Rod Slicing</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Raw bars transported under Outward DC to Murugan. Cut into exact length of <strong class="text-amber-200">~780 mm</strong> pieces.
+            </p>
+            <div class="bg-slate-950/70 rounded-lg p-2.5 border border-slate-800 space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between text-slate-400"><span>Standard Length:</span> <span class="text-slate-200">780 mm ± 2mm</span></div>
+              <div class="flex justify-between text-slate-400"><span>Conversion:</span> <span class="text-amber-300">~1 Ton = 260 Rods</span></div>
+              <div class="flex justify-between text-slate-400"><span>Burr Inspection:</span> <span class="text-emerald-400">De-burred</span></div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Transfer: <span class="text-slate-200 font-mono">Return DC (Rod Count)</span></span>
+            <span class="text-amber-400 font-semibold">Count Verified</span>
+          </div>
+        </div>
+
+        <!-- 3. CNC MACHINING MESH CARD (4 VENDORS) -->
+        <div class="rounded-xl border border-purple-500/30 bg-slate-900/80 p-5 glow-box-purple relative flex flex-col justify-between md:col-span-2">
+          <div class="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-purple-600 text-white uppercase shadow-sm">
+            STAGE 03 : CNC TURNING DISTRIBUTION MESH
+          </div>
+          <div class="space-y-3 mt-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-purple-400">Parallel Multi-Vendor Machining (4 Streams)</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-mono">Rods → Blank Wedges</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">780mm Rods Dispatched via Transport with Rod-Count DC</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              780mm rods are bundled into tons/lots and dispatched to 4 CNC turning centers with separate DC copies. Each rod is turned into multiple CNC wedge blanks.
+            </p>
+            
+            <!-- The 4 Vendors Sub-grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
+              <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+                <span class="text-[11px] font-bold text-purple-300">1. UCON IN-HOUSE</span>
+                <span class="text-[10px] text-slate-400 mt-1">Ace Micromatic Jobber XL</span>
+                <span class="text-[10px] text-emerald-400 font-mono mt-1">Tool Life Monitored</span>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+                <span class="text-[11px] font-bold text-blue-300">2. SRI MURUGAN</span>
+                <span class="text-[10px] text-slate-400 mt-1">CNC Subcontract Cell</span>
+                <span class="text-[10px] text-blue-400 font-mono mt-1">98 Invoices & DCs</span>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+                <span class="text-[11px] font-bold text-amber-300">3. EVERBRIGHT</span>
+                <span class="text-[10px] text-slate-400 mt-1">High Volume Turning</span>
+                <span class="text-[10px] text-amber-400 font-mono mt-1">70 Invoices & DCs</span>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+                <span class="text-[11px] font-bold text-cyan-300">4. PREMA ENGG</span>
+                <span class="text-[10px] text-slate-400 mt-1">Precision CNC Cell</span>
+                <span class="text-[10px] text-cyan-400 font-mono mt-1">9 Invoices & DCs</span>
+              </div>
+            </div>
+
+            <div class="bg-slate-950/70 rounded-lg p-2.5 border border-slate-800 flex items-center justify-between text-xs font-mono">
+              <span class="text-slate-400">Reconciliation KPI:</span>
+              <span class="text-purple-300">Rod Count Out vs. CNC Blank Wedges Returned vs. Machining Scrap (Chips)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Arrow Flow Indicator -->
+      <div class="flex items-center justify-center my-2 text-slate-500">
+        <svg class="w-6 h-6 animate-bounce text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+      </div>
+
+      <!-- Stage 2: UCON IN-HOUSE SECONDARY MACHINING & HEAT TREATMENT -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+        <!-- 4. UCON BORE QC & TAPPING CARD -->
+        <div class="rounded-xl border border-indigo-500/30 bg-slate-900/80 p-5 glow-box relative flex flex-col justify-between">
+          <div class="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-indigo-600 text-white uppercase shadow-sm">
+            STAGE 04 : BORE QC & TAPPING
+          </div>
+          <div class="space-y-3 mt-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-indigo-400">Ucon In-House Setup</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-mono">Bhavya + Micro Tech</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">Borehole Gauging & Buttress Tapping</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              CNC blanks returning from all 4 vendors arrive at Ucon. 100% borehole diameter check before precision internal Buttress threading.
+            </p>
+            <div class="bg-slate-950/70 rounded-lg p-2.5 border border-slate-800 space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between text-slate-400"><span>Borehole Gauge:</span> <span class="text-slate-200">Unique Measurement Go/No-Go</span></div>
+              <div class="flex justify-between text-slate-400"><span>Tapping Machine:</span> <span class="text-indigo-300">Bhavya Machine Tools (CAPEX)</span></div>
+              <div class="flex justify-between text-slate-400"><span>Tap Tool:</span> <span class="text-amber-400">Micro Tech Buttress Tap</span></div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Tap Life Count: <span class="text-indigo-300 font-mono">~350 pcs/tap</span></span>
+            <span class="text-emerald-400 font-semibold">Pitch Checked</span>
+          </div>
+        </div>
+
+        <!-- 5. SLITTING / SEATING & WASHING CARD -->
+        <div class="rounded-xl border border-cyan-500/30 bg-slate-900/80 p-5 glow-box relative flex flex-col justify-between">
+          <div class="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-cyan-600 text-white uppercase shadow-sm">
+            STAGE 05 : SLITTING & WASHING
+          </div>
+          <div class="space-y-3 mt-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-cyan-400">Slitting Machine Cell</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-mono">4" HSS Cutter + Coolant</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">Wedge Segment Slitting & Washing</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Tapped blanks are slit into 2 or 3 wedge segments using 4" slitting cutters. Degreased & washed using neat cutting oil & coolant.
+            </p>
+            <div class="bg-slate-950/70 rounded-lg p-2.5 border border-slate-800 space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between text-slate-400"><span>Cutter:</span> <span class="text-slate-200">OVS 125x1.5x25.4 4" HSS M42</span></div>
+              <div class="flex justify-between text-slate-400"><span>Bearing Maint:</span> <span class="text-rose-400 font-semibold">Spindle Bearings Replaced</span></div>
+              <div class="flex justify-between text-slate-400"><span>Washing Coolant:</span> <span class="text-cyan-300">Castrol ILOCUT 1945 (Sathish)</span></div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Maintenance Track: <span class="text-slate-300 font-mono">Bearings & Washers</span></span>
+            <span class="text-cyan-400 font-semibold">Chips Removed</span>
+          </div>
+        </div>
+
+        <!-- 6. HEAT TREATMENT & METALLURGICAL QC CARD -->
+        <div class="rounded-xl border border-rose-500/30 bg-slate-900/80 p-5 glow-box relative flex flex-col justify-between">
+          <div class="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-rose-600 text-white uppercase shadow-sm">
+            STAGE 06 : HEAT TREATMENT
+          </div>
+          <div class="space-y-3 mt-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-rose-400">Unitherm / Ambattur / Techmat</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 font-mono">SQF Carburizing</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">Case Hardening & Hardness Test</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Slit wedges sent to Unitherm under Outward DC for Sealed Quench Furnace case carburizing, oil quenching, and tempering.
+            </p>
+            <div class="bg-slate-950/70 rounded-lg p-2.5 border border-slate-800 space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between text-slate-400"><span>Surface Hardness:</span> <span class="text-emerald-400 font-semibold">58 - 62 HRC</span></div>
+              <div class="flex justify-between text-slate-400"><span>Core Hardness:</span> <span class="text-slate-200">32 - 38 HRC</span></div>
+              <div class="flex justify-between text-slate-400"><span>Effective Depth:</span> <span class="text-rose-300 font-semibold">0.30 - 0.50 mm</span></div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Cert Link: <span class="text-slate-200 font-mono">Mfr Test Cert (SQF)</span></span>
+            <span class="text-rose-400 font-semibold">Heat Batch Tracked</span>
+          </div>
+        </div>
+
+        <!-- 7. PROOF LOAD TESTING, SPRINGS & DISPATCH CARD -->
+        <div class="rounded-xl border border-emerald-500/30 bg-slate-900/80 p-5 glow-box-emerald relative flex flex-col justify-between">
+          <div class="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-emerald-600 text-white uppercase shadow-sm">
+            STAGE 07 : QC, SPRINGS & STORE
+          </div>
+          <div class="space-y-3 mt-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-emerald-400">Ucon Rig + Chennai Central Store</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono">190 kN Load Test</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">190kN Load Test, Spring & Dispatch</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Heat-treated wedges undergo 190 kN efficiency test on Ucon Inos rig. Assembled with Grace Springs, packed and dispatched via DC to Chennai Central Store.
+            </p>
+            <div class="bg-slate-950/70 rounded-lg p-2.5 border border-slate-800 space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between text-slate-400"><span>Efficiency Load:</span> <span class="text-emerald-400 font-semibold">190 kN PASS</span></div>
+              <div class="flex justify-between text-slate-400"><span>Assembly Spring:</span> <span class="text-slate-200">Grace Springs (Grade 1)</span></div>
+              <div class="flex justify-between text-slate-400"><span>Final Outward:</span> <span class="text-blue-300">Central Store Chennai DC</span></div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Destination: <span class="text-emerald-400 font-mono">Chennai Store</span></span>
+            <span class="text-emerald-400 font-semibold">Zero Defect Dispatch</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: 20-TON INWARD RECONCILIATION & DIGITAL THREAD -->
+    <!-- ========================================================================= -->
+    <div id="view-reconciliation" class="hidden space-y-8 max-w-7xl mx-auto">
+      <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            20-Ton Inward-to-Outward Digital Thread Reconciliation Engine
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Automated tracking: NG Steel Raw Invoice → Murugan Cutting Rods → 4 CNC Vendors → Wedges Dispatched</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-mono text-amber-400">
+          Raw Invoice: NG SALES #3207 / 10,020 KG
+        </div>
+      </div>
+
+      <!-- Interactive Reconciliation Ledger Card -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <span class="text-xs text-slate-400">Step 1: Raw Material Inward</span>
+            <div class="text-lg font-bold text-blue-400 font-mono mt-1">10,020 KG (10.02 MT)</div>
+            <div class="text-[11px] text-slate-500 mt-1 font-mono">Invoice #3207 (₹8,61,359)</div>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <span class="text-xs text-slate-400">Step 2: Murugan 780mm Rods</span>
+            <div class="text-lg font-bold text-amber-400 font-mono mt-1">2,630 Cut Rods</div>
+            <div class="text-[11px] text-slate-500 mt-1 font-mono">Yield: 99.4% (End-cut scrap 60kg)</div>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <span class="text-xs text-slate-400">Step 3: CNC Machined Blanks</span>
+            <div class="text-lg font-bold text-purple-400 font-mono mt-1">10,480 Turned Blanks</div>
+            <div class="text-[11px] text-slate-500 mt-1 font-mono">Spread across 4 CNC Centers</div>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <span class="text-xs text-slate-400">Step 4: Central Store Dispatched</span>
+            <div class="text-lg font-bold text-emerald-400 font-mono mt-1">10,320 Wedges (190kN PASS)</div>
+            <div class="text-[11px] text-slate-500 mt-1 font-mono">Rejection: 1.5% (160 pcs)</div>
+          </div>
+        </div>
+
+        <!-- Matrix Table of 4 CNC Vendors for this Invoice -->
+        <h4 class="text-sm font-semibold text-slate-200 mb-3 flex items-center justify-between">
+          <span>Subcontract CNC Allocation Ledger (Linked to NG Sales Invoice #3207)</span>
+          <span class="text-xs text-slate-400 font-normal">All quantities live-queried from PostgreSQL DC registers</span>
+        </h4>
+        <div class="overflow-x-auto rounded-lg border border-slate-800">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-slate-950 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="p-3">CNC Subcontractor</th>
+                <th class="p-3">Outward DC (780mm Rods)</th>
+                <th class="p-3">Rods Dispatched</th>
+                <th class="p-3">Expected Blanks</th>
+                <th class="p-3">Return Inward DC</th>
+                <th class="p-3">Blanks Received</th>
+                <th class="p-3">Machining Rejection</th>
+                <th class="p-3">Scrap %</th>
+                <th class="p-3">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-slate-300">
+              <tr class="hover:bg-slate-800/40">
+                <td class="p-3 font-sans font-medium text-purple-300">1. UCON In-House (Ace CNC)</td>
+                <td class="p-3 text-slate-400">UCON-DC-041</td>
+                <td class="p-3 text-slate-200 font-bold">430 Rods</td>
+                <td class="p-3">1,720 pcs</td>
+                <td class="p-3 text-slate-400">INTERNAL-TRANSFER</td>
+                <td class="p-3 text-emerald-400 font-bold">1,705 pcs</td>
+                <td class="p-3 text-rose-400">15 pcs</td>
+                <td class="p-3">0.87%</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">RECONCILED</span></td>
+              </tr>
+              <tr class="hover:bg-slate-800/40">
+                <td class="p-3 font-sans font-medium text-amber-300">2. Everbright Engineering</td>
+                <td class="p-3 text-slate-400">UCONPT-DC-043</td>
+                <td class="p-3 text-slate-200 font-bold">800 Rods (3.04 MT)</td>
+                <td class="p-3">3,200 pcs</td>
+                <td class="p-3 text-slate-400">EB-DC-1641, 1642</td>
+                <td class="p-3 text-emerald-400 font-bold">3,145 pcs</td>
+                <td class="p-3 text-rose-400">55 pcs</td>
+                <td class="p-3">1.71%</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">RECONCILED</span></td>
+              </tr>
+              <tr class="hover:bg-slate-800/40">
+                <td class="p-3 font-sans font-medium text-blue-300">3. Sri Murugan Industries</td>
+                <td class="p-3 text-slate-400">UCONPT-DC-046</td>
+                <td class="p-3 text-slate-200 font-bold">800 Rods (3.04 MT)</td>
+                <td class="p-3">3,200 pcs</td>
+                <td class="p-3 text-slate-400">SMI-DC-5694, 5776</td>
+                <td class="p-3 text-emerald-400 font-bold">3,158 pcs</td>
+                <td class="p-3 text-rose-400">42 pcs</td>
+                <td class="p-3">1.31%</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">RECONCILED</span></td>
+              </tr>
+              <tr class="hover:bg-slate-800/40">
+                <td class="p-3 font-sans font-medium text-cyan-300">4. Prema Engineering Works</td>
+                <td class="p-3 text-slate-400">UCONPT-DC-048</td>
+                <td class="p-3 text-slate-200 font-bold">600 Rods (2.28 MT)</td>
+                <td class="p-3">2,400 pcs</td>
+                <td class="p-3 text-slate-400">PREMA-DC-019</td>
+                <td class="p-3 text-emerald-400 font-bold">2,352 pcs</td>
+                <td class="p-3 text-rose-400">48 pcs</td>
+                <td class="p-3">2.00%</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">RECONCILED</span></td>
+              </tr>
+              <tr class="bg-slate-950/80 font-bold text-slate-100">
+                <td class="p-3 font-sans">TOTAL INVOICE #3207 ALLOCATION</td>
+                <td class="p-3 text-slate-400">4 Delivery Challans</td>
+                <td class="p-3 text-blue-400">2,630 Rods</td>
+                <td class="p-3 text-purple-400">10,520 pcs</td>
+                <td class="p-3 text-slate-400">7 Inward Challans</td>
+                <td class="p-3 text-emerald-400">10,360 pcs</td>
+                <td class="p-3 text-rose-400">160 pcs</td>
+                <td class="p-3 text-amber-300">1.52% avg</td>
+                <td class="p-3 text-emerald-400">100% ACCOUNTED</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: TOOL LIFE & EQUIPMENT MAINTENANCE SUBSYSTEM -->
+    <!-- ========================================================================= -->
+    <div id="view-maintenance" class="hidden space-y-8 max-w-7xl mx-auto">
+      <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+            Tool Life & Equipment Maintenance Subsystem
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Capturing CNC Tooling Consumption, Slitting Machine Bearing Failures & Monthly Machine Operating Health</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono text-cyan-400 bg-cyan-950/50 px-2.5 py-1 rounded border border-cyan-800">
+            Active Machinery: 5 Machines Tracked
+          </span>
+        </div>
+      </div>
+
+      <!-- Maintenance and Tooling Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- Tool Life Monitoring Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 glow-box flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-blue-400 uppercase tracking-wider">TOOL CONSUMPTION</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono">Monthly Index</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">CNC Inserts & Tapping Tool Life</h3>
+            <p class="text-xs text-slate-400">
+              Pieces machined per cutting edge in UCON in-house Ace Micromatic CNC machine and Bhavya tapping setup.
+            </p>
+            <div class="space-y-2 pt-2 text-xs font-mono">
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>CNC Turning Inserts:</span>
+                <span class="text-blue-300 font-bold">120 pcs / edge</span>
+              </div>
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>Buttress Tap (Micro Tech):</span>
+                <span class="text-amber-300 font-bold">350 pcs / tap</span>
+              </div>
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>4" Slitting Cutter (OVS):</span>
+                <span class="text-purple-300 font-bold">1,800 cuts / resharpen</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+            <span>Linked to Invoice: <span class="text-slate-200 font-mono">OVS, Micro Tech, Royal Tools</span></span>
+          </div>
+        </div>
+
+        <!-- Slitting Machine Spindle & Bearing Maintenance Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 glow-box-amber flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">CRITICAL REPAIRS</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 font-mono">Frequent Component</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">Slitting Machine Bearing & Washer Log</h3>
+            <p class="text-xs text-slate-400">
+              Due to heavy cutting vibrations and continuous 4-inch cutter load, slitting machine bearings and arbor washers require periodic renewal.
+            </p>
+            <div class="space-y-2 pt-2 text-xs font-mono">
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>Spindle Bearing Replacements:</span>
+                <span class="text-rose-400 font-bold">6 Occurrences (2 Yrs)</span>
+              </div>
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>Arbor Spacer Washers:</span>
+                <span class="text-amber-300 font-bold">Accurate Engg (#118)</span>
+              </div>
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>Saw Blade Sharpening:</span>
+                <span class="text-emerald-400 font-bold">Steel Magic Lazer 450</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+            <span>Tracking Table: <span class="text-slate-200 font-mono">maintenance_records</span></span>
+          </div>
+        </div>
+
+        <!-- Monthly Equipment Health & Lubrication Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 glow-box-emerald flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">PREVENTIVE CARE</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono">Lube & Coolant</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-100">Coolant Oil Sump & Preventive AMC</h3>
+            <p class="text-xs text-slate-400">
+              Coolant concentration check, hydraulic oil top-up, and Ace Micromatic AMC service contract schedule.
+            </p>
+            <div class="space-y-2 pt-2 text-xs font-mono">
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>Neat Cutting Oil Inward:</span>
+                <span class="text-cyan-300 font-bold">Castrol ILOCUT 1945</span>
+              </div>
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>Ace Micromatic AMC:</span>
+                <span class="text-emerald-400 font-bold">Contract #253310004717</span>
+              </div>
+              <div class="bg-slate-950 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>Electrical Panel Health:</span>
+                <span class="text-purple-300 font-bold">Syscon Electro Tech #133</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+            <span>Next AMC Due: <span class="text-emerald-400 font-mono">Quarterly Cycle</span></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: DATABASE SCHEMA & ENTITY RELATIONSHIPS (ERD) -->
+    <!-- ========================================================================= -->
+    <div id="view-erd" class="hidden space-y-8 max-w-7xl mx-auto">
+      <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+            PostgreSQL Relational Schema & Entity Relationships
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Live Database Tables in Supabase Powering the Routing, Reconciliation, and Maintenance Modules</p>
+        </div>
+        <div class="text-xs font-mono text-purple-400 bg-purple-950/40 px-3 py-1.5 rounded border border-purple-800">
+          Supabase PostgreSQL AWS ap-south-1
+        </div>
+      </div>
+
+      <!-- ERD Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- Table 1: documents & line items -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+          <div class="bg-blue-950/60 px-4 py-2.5 border-b border-blue-900/40 flex items-center justify-between">
+            <span class="font-mono text-xs font-bold text-blue-300">TABLE: documents & lines</span>
+            <span class="text-[10px] text-blue-400 font-mono">Core Ledger</span>
+          </div>
+          <div class="p-3 text-xs font-mono space-y-1.5 text-slate-300">
+            <div class="flex justify-between"><span class="text-blue-400 font-semibold">id</span> <span>UUID (PK)</span></div>
+            <div class="flex justify-between"><span>document_number</span> <span>TEXT</span></div>
+            <div class="flex justify-between"><span>document_date</span> <span>DATE</span></div>
+            <div class="flex justify-between"><span class="text-purple-400">vendor_id</span> <span>UUID (FK)</span></div>
+            <div class="flex justify-between"><span>classification_code</span> <span>TEXT (A-V)</span></div>
+            <div class="flex justify-between"><span>ai_confidence</span> <span>NUMERIC (0.9800)</span></div>
+            <div class="border-t border-slate-800 my-1 pt-1 text-[11px] text-slate-400">Linked to: document_line_items (1:N)</div>
+            <div class="flex justify-between"><span>quantity / unit_rate</span> <span>NUMERIC</span></div>
+            <div class="flex justify-between"><span>capex_or_opex</span> <span>TEXT ('CAPEX'|'OPEX')</span></div>
+            <div class="flex justify-between"><span>destination_module</span> <span>TEXT</span></div>
+          </div>
+        </div>
+
+        <!-- Table 2: materials & cutting_lots -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+          <div class="bg-amber-950/60 px-4 py-2.5 border-b border-amber-900/40 flex items-center justify-between">
+            <span class="font-mono text-xs font-bold text-amber-300">TABLE: raw_material_lots</span>
+            <span class="text-[10px] text-amber-400 font-mono">Traceability Master</span>
+          </div>
+          <div class="p-3 text-xs font-mono space-y-1.5 text-slate-300">
+            <div class="flex justify-between"><span class="text-amber-400 font-semibold">id</span> <span>UUID (PK)</span></div>
+            <div class="flex justify-between"><span class="text-blue-400">raw_invoice_id</span> <span>UUID (FK)</span></div>
+            <div class="flex justify-between"><span>steel_grade</span> <span>TEXT ('20MnCr5')</span></div>
+            <div class="flex justify-between"><span>inward_weight_kg</span> <span>NUMERIC</span></div>
+            <div class="flex justify-between"><span>cutting_vendor_id</span> <span>UUID (Sri Murugan)</span></div>
+            <div class="flex justify-between"><span>cut_rods_count</span> <span>INTEGER (~780mm)</span></div>
+            <div class="flex justify-between"><span>cutting_dc_out</span> <span>TEXT</span></div>
+            <div class="flex justify-between"><span>cutting_dc_in</span> <span>TEXT</span></div>
+            <div class="border-t border-slate-800 my-1 pt-1 text-[11px] text-slate-400">Feeds: cnc_allocations (1:N)</div>
+          </div>
+        </div>
+
+        <!-- Table 3: machines & maintenance_records -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+          <div class="bg-emerald-950/60 px-4 py-2.5 border-b border-emerald-900/40 flex items-center justify-between">
+            <span class="font-mono text-xs font-bold text-emerald-300">TABLE: machines & maintenance</span>
+            <span class="text-[10px] text-emerald-400 font-mono">Asset Health</span>
+          </div>
+          <div class="p-3 text-xs font-mono space-y-1.5 text-slate-300">
+            <div class="flex justify-between"><span class="text-emerald-400 font-semibold">id</span> <span>UUID (PK)</span></div>
+            <div class="flex justify-between"><span>machine_code</span> <span>TEXT ('CNC-01', 'SLIT-01')</span></div>
+            <div class="flex justify-between"><span>machine_type</span> <span>TEXT ('CNC', 'SLITTING', 'TAPPING')</span></div>
+            <div class="flex justify-between"><span class="text-purple-400">vendor_id</span> <span>UUID (Ace, Bhavya)</span></div>
+            <div class="flex justify-between"><span>purchase_cost</span> <span>NUMERIC (CAPEX)</span></div>
+            <div class="border-t border-slate-800 my-1 pt-1 text-[11px] text-slate-400">Linked to: maintenance_records (1:N)</div>
+            <div class="flex justify-between"><span>maintenance_type</span> <span>TEXT ('BEARING', 'WASHER', 'AMC')</span></div>
+            <div class="flex justify-between"><span class="text-blue-400">document_id</span> <span>UUID (Bill link)</span></div>
+            <div class="flex justify-between"><span>amount</span> <span>NUMERIC</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 5: ERASER.IO DIAGRAM-AS-CODE & MERMAID SYNTAX -->
+    <!-- ========================================================================= -->
+    <div id="view-code" class="hidden space-y-6 max-w-7xl mx-auto">
+      <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            Eraser.io Native Diagram-as-Code & Mermaid Syntax
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Copy and paste directly into Eraser.io (app.eraser.io) or any diagram tool to edit visually</p>
+        </div>
+        <button onclick="copyEraserCode()" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+          <span id="copy-btn-text">Copy Eraser.io Code</span>
+        </button>
+      </div>
+
+      <!-- Eraser.io Code Display -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+        <div class="bg-slate-950 px-4 py-2 border-b border-slate-800 flex justify-between items-center">
+          <span class="text-xs font-mono text-slate-400">eraser-diagram.txt (Eraser.io Diagram-as-Code Syntax)</span>
+          <span class="text-[11px] text-blue-400 font-mono">Ready to import</span>
+        </div>
+        <pre class="p-5 text-xs font-mono text-slate-200 overflow-x-auto leading-relaxed select-all" id="eraser-code-content">// =================================================================
+// UCON WEDGE ERP v2 - ARCHITECTURAL FLOWCHART (Eraser.io Syntax)
+// Paste into app.eraser.io -> New Diagram -> Diagram-as-Code
+// =================================================================
+
+title UCON Wedge Manufacturing & Traceability Architecture
+
+// -------------------------------------------------------------
+// STAGE 01: RAW MATERIAL INWARD & TESTING
+// -------------------------------------------------------------
+NG_Steel [icon: package, color: blue, label: "NG Sales / Thirupathi\n(Raw 20MnCr5 25mm dia)"]
+Spectro_Test [icon: check-circle, color: green, label: "Techmat Spectro & QC\n(Chemical & Hardness PASS)"]
+
+NG_Steel > Spectro_Test: "Tax Invoice (e.g. #3207)\nWeight Slip (20 Tons)"
+
+// -------------------------------------------------------------
+// STAGE 02: CUTTING OPERATION
+// -------------------------------------------------------------
+Murugan_Cutting [icon: scissors, color: amber, label: "Sri Murugan Industries\n(Cutting to ~780mm Rods)"]
+
+Spectro_Test > Murugan_Cutting: "Outward DC\n(Raw Steel Bar Bundles)"
+
+// -------------------------------------------------------------
+// STAGE 03: MULTI-VENDOR CNC MACHINING MESH
+// -------------------------------------------------------------
+group CNC_Manufacturers [color: purple, label: "Parallel CNC Turning Matrix"] {
+  Ucon_CNC [icon: cpu, color: purple, label: "UCON In-House CNC\n(Ace Micromatic Jobber XL)"]
+  Murugan_CNC [icon: settings, color: blue, label: "Sri Murugan CNC Cell\n(Subcontract Turning)"]
+  Everbright_CNC [icon: settings, color: amber, label: "Everbright Engineering\n(Subcontract Turning)"]
+  Prema_CNC [icon: settings, color: cyan, label: "Prema Engineering\n(Subcontract Turning)"]
+}
+
+Murugan_Cutting > Ucon_CNC: "Transport DC\n(Rod Count: ~430)"
+Murugan_Cutting > Murugan_CNC: "Transport DC\n(Rod Count: ~800)"
+Murugan_Cutting > Everbright_CNC: "Transport DC\n(Rod Count: ~800)"
+Murugan_Cutting > Prema_CNC: "Transport DC\n(Rod Count: ~600)"
+
+// -------------------------------------------------------------
+// STAGE 04: UCON IN-HOUSE SECONDARY MACHINING
+// -------------------------------------------------------------
+Bore_QC [icon: search, color: indigo, label: "Borehole 100% QC\n(Unique Measurement Gauges)"]
+Tapping_Cell [icon: tool, color: indigo, label: "Tapping Operation\n(Bhavya Machine + Buttress Tap)"]
+Slitting_Cell [icon: disc, color: cyan, label: "Slitting & Seating\n(4\" HSS M42 Slitting Cutter)"]
+Washing_Cell [icon: droplet, color: cyan, label: "Degreasing & Washing\n(Castrol ILOCUT 1945 Coolant)"]
+
+Ucon_CNC > Bore_QC: "Turned Blanks"
+Murugan_CNC > Bore_QC: "Inward DC (Blanks)"
+Everbright_CNC > Bore_QC: "Inward DC (Blanks)"
+Prema_CNC > Bore_QC: "Inward DC (Blanks)"
+
+Bore_QC > Tapping_Cell: "Plug Gauge Approved"
+Tapping_Cell > Slitting_Cell: "Tapped Wedges"
+Slitting_Cell > Washing_Cell: "Slit Wedge Segments"
+
+// -------------------------------------------------------------
+// STAGE 05: HEAT TREATMENT & METALLURGICAL QC
+// -------------------------------------------------------------
+Unitherm_HT [icon: zap, color: red, label: "Unitherm Engineers\n(SQF Case Carburizing)"]
+HT_Cert [icon: award, color: green, label: "Manufacturer Test Cert\n(58-62 HRC, 0.4mm depth)"]
+
+Washing_Cell > Unitherm_HT: "Outward DC (Clean Wedges)"
+Unitherm_HT > HT_Cert: "Inward DC + HT Invoice"
+
+// -------------------------------------------------------------
+// STAGE 06: FINAL QC, LOAD TESTING & DISPATCH
+// -------------------------------------------------------------
+Load_Test [icon: shield, color: green, label: "190 kN Efficiency Test\n(In-House Ucon Inos Rig)"]
+Spring_Assembly [icon: layers, color: blue, label: "Spring Assembly & Packing\n(Grace Springs / Viking)"]
+Central_Store [icon: home, color: green, label: "Chennai Central Store\n(Finished Goods Warehouse)"]
+
+HT_Cert > Load_Test: "Chassis & Core QC"
+Load_Test > Spring_Assembly: "100% Load Passed"
+Spring_Assembly > Central_Store: "Final Outward DC"
+
+// -------------------------------------------------------------
+// TOOL LIFE & MAINTENANCE RECONCILIATION
+// -------------------------------------------------------------
+Tool_Life_Ledger [icon: activity, color: blue, label: "Tool Life Tracking\n(Inserts, Taps, Cutters)"]
+Bearing_Maint_Ledger [icon: wrench, color: amber, label: "Machine Maintenance\n(Slitting Bearing Changes)"]
+
+Tapping_Cell - Tool_Life_Ledger
+Slitting_Cell - Bearing_Maint_Ledger
+Ucon_CNC - Tool_Life_Ledger
+        </pre>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Interactive JavaScript Logic -->
+  <script>
+    function switchTab(tabId) {
+      // Hide all tabs
+      document.getElementById('view-routing').classList.add('hidden');
+      document.getElementById('view-reconciliation').classList.add('hidden');
+      document.getElementById('view-maintenance').classList.add('hidden');
+      document.getElementById('view-erd').classList.add('hidden');
+      document.getElementById('view-code').classList.add('hidden');
+
+      // Reset button styles
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-400');
+      });
+
+      // Show selected tab
+      document.getElementById('view-' + tabId).classList.remove('hidden');
+      const activeBtn = document.getElementById('tab-' + tabId);
+      activeBtn.classList.remove('text-slate-400');
+      activeBtn.classList.add('bg-blue-600', 'text-white', 'shadow-sm');
+    }
+
+    function resetZoom() {
+      const container = document.getElementById('canvas-container');
+      container.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
+
+    function copyEraserCode() {
+      const text = document.getElementById('eraser-code-content').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-btn-text');
+        const oldText = btn.innerText;
+        btn.innerText = 'Copied to Clipboard!';
+        setTimeout(() => {
+          btn.innerText = oldText;
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
