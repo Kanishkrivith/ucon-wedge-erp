@@ -143,14 +143,64 @@ export async function GET(req: Request) {
       return ok({ items: items.rows, movements: movements.rows });
     }
 
-    // 4. Vendors & Procurement
+    // 4. Vendors Master & Stock Integration
     if (resource === 'vendors') {
-      const r = await pool.query(`
-        SELECT id, canonical_name, category, country, gstin, contact_name, phone, email, active
-        FROM vendors
-        ORDER BY canonical_name
-      `);
-      return ok({ rows: r.rows });
+      const [vRes, stockRes] = await Promise.all([
+        pool.query(`
+          SELECT
+            v.id,
+            v.canonical_name,
+            COALESCE(v.vendor_type, v.category) AS vendor_type,
+            v.category,
+            v.country,
+            v.gstin,
+            v.pan,
+            v.address,
+            v.email,
+            v.phone,
+            v.contact_name,
+            v.material_supplied,
+            v.inward_stock_type,
+            v.conversion_rule,
+            v.scrap_applicable,
+            v.active,
+            v.created_at,
+            COUNT(DISTINCT d.id) AS document_count,
+            COALESCE(SUM(dli.total_amount), 0) AS total_spend
+          FROM vendors v
+          LEFT JOIN documents d ON d.vendor_id = v.id
+          LEFT JOIN document_line_items dli ON dli.document_id = d.id
+          GROUP BY v.id
+          ORDER BY v.canonical_name
+        `),
+        pool.query(`
+          SELECT
+            ii.id,
+            ii.item_code,
+            ii.item_name,
+            ii.item_type,
+            ii.unit,
+            ii.yield_factor,
+            ii.scrap_recovery_rate,
+            COALESCE(SUM(
+              CASE
+                WHEN im.movement_type IN ('RECEIPT', 'PRODUCTION_IN', 'ADJUSTMENT') THEN im.quantity
+                WHEN im.movement_type IN ('ISSUE', 'PRODUCTION_OUT', 'REJECTION', 'DISPATCH') THEN -im.quantity
+                ELSE 0
+              END
+            ), 0) AS current_stock
+          FROM inventory_items ii
+          LEFT JOIN inventory_movements im ON im.item_id = ii.id
+          WHERE ii.active = true
+          GROUP BY ii.id
+          ORDER BY ii.item_type, ii.item_code
+        `),
+      ]);
+
+      return ok({
+        rows: vRes.rows,
+        stocks: stockRes.rows,
+      });
     }
 
     if (resource === 'purchase') {
@@ -377,24 +427,68 @@ export async function POST(req: Request) {
       return ok({ ok: true, id: q.rows[0].id });
     }
 
-    // 4. Create Vendor
+    // 4. Create or Update Vendor Registration
     if (r === 'vendor') {
-      const q = await pool.query(
-        `INSERT INTO vendors (canonical_name, category, country, gstin, contact_name, phone, email, address)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id`,
-        [
-          body.name,
-          body.category || null,
-          body.country || 'India',
-          body.gstin || null,
-          body.contactName || null,
-          body.phone || null,
-          body.email || null,
-          body.address || null,
-        ]
-      );
-      return ok({ ok: true, id: q.rows[0].id });
+      if (body.id) {
+        await pool.query(
+          `UPDATE vendors SET
+            canonical_name = COALESCE($1, canonical_name),
+            category = COALESCE($2, category),
+            vendor_type = COALESCE($2, vendor_type),
+            gstin = COALESCE($3, gstin),
+            pan = COALESCE($4, pan),
+            address = COALESCE($5, address),
+            email = COALESCE($6, email),
+            phone = COALESCE($7, phone),
+            contact_name = COALESCE($8, contact_name),
+            material_supplied = COALESCE($9, material_supplied),
+            inward_stock_type = COALESCE($10, inward_stock_type),
+            conversion_rule = COALESCE($11, conversion_rule),
+            scrap_applicable = COALESCE($12, scrap_applicable)
+           WHERE id = $13`,
+          [
+            body.name,
+            body.category || body.vendorType,
+            body.gstin,
+            body.pan || (body.gstin && body.gstin.length === 15 ? body.gstin.substring(2, 12) : null),
+            body.address,
+            body.email,
+            body.phone,
+            body.contactName,
+            body.materialSupplied,
+            body.inwardStockType,
+            body.conversionRule,
+            body.scrapApplicable,
+            body.id,
+          ]
+        );
+        return ok({ ok: true, id: body.id, action: 'UPDATE' });
+      } else {
+        const q = await pool.query(
+          `INSERT INTO vendors (
+            canonical_name, category, vendor_type, country, gstin, pan,
+            contact_name, phone, email, address, material_supplied,
+            inward_stock_type, conversion_rule, scrap_applicable, active
+          ) VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true)
+          RETURNING id`,
+          [
+            body.name,
+            body.category || body.vendorType || 'SUBCONTRACT',
+            body.country || 'India',
+            body.gstin || null,
+            body.pan || (body.gstin && body.gstin.length === 15 ? body.gstin.substring(2, 12) : null),
+            body.contactName || null,
+            body.phone || null,
+            body.email || null,
+            body.address || null,
+            body.materialSupplied || null,
+            body.inwardStockType || null,
+            body.conversionRule || null,
+            body.scrapApplicable || false,
+          ]
+        );
+        return ok({ ok: true, id: q.rows[0].id, action: 'INSERT' });
+      }
     }
 
     // 5. Create Machine Register / CapEx Entry

@@ -6,6 +6,7 @@ import {
   resolveCanonicalCategory,
 } from './canonical-library';
 import { DocumentAIResult, DocumentAIField, DocumentAILineItem } from './document-ocr';
+import { resolveRegisteredVendor } from '@/lib/vendors/vendor-resolver';
 
 export interface GeminiExtractionResult extends DocumentAIResult {
   engine: 'GEMINI_2_FLASH';
@@ -237,6 +238,33 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
   const vendorGstin = parsed.vendor_gstin || parsed.gstin || parsed.supplier_gstin || hdr.vendor_gstin || hdr.gstin || hdr.supplier_gstin;
   const vendorPan = parsed.vendor_pan || parsed.pan || hdr.vendor_pan || hdr.pan || (vendorGstin ? String(vendorGstin).substring(2, 12) : null);
   const vendorAddress = parsed.vendor_address || parsed.supplier_address || hdr.vendor_address || hdr.supplier_address;
+
+  // Auto-enrich from registered vendor master
+  let finalVendorName = vendorName;
+  let finalVendorGstin = vendorGstin;
+  let finalVendorPan = vendorPan;
+  let finalVendorAddress = vendorAddress;
+  let vendorCategory: string | null = null;
+  let materialSupplied: string | null = null;
+  let inwardStockType: string | null = null;
+  let conversionRule: string | null = null;
+
+  try {
+    const regVendor = await resolveRegisteredVendor(vendorName, vendorGstin, vendorPan);
+    if (regVendor) {
+      finalVendorName = regVendor.canonical_name;
+      finalVendorGstin = regVendor.gstin || finalVendorGstin;
+      finalVendorPan = regVendor.pan || finalVendorPan;
+      finalVendorAddress = regVendor.address || finalVendorAddress;
+      vendorCategory = regVendor.vendor_type || regVendor.category;
+      materialSupplied = regVendor.material_supplied;
+      inwardStockType = regVendor.inward_stock_type;
+      conversionRule = regVendor.conversion_rule;
+    }
+  } catch (enrichErr) {
+    console.warn('Could not auto-enrich vendor from master registry:', enrichErr);
+  }
+
   const custName = parsed.customer_name || parsed.buyer_name || hdr.customer_name || hdr.buyer_name || 'UCON PT STRUCTURAL SYSTEM PRIVATE LIMITED';
   const custGstin = parsed.customer_gstin || parsed.buyer_gstin || hdr.customer_gstin || hdr.buyer_gstin || '33AAACU6685L1ZV';
   const poNum = parsed.po_number || hdr.po_number;
@@ -268,11 +296,15 @@ Return STRICTLY a JSON object with this exact schema (no markdown, no backticks,
   addField('document_number', 'DOCUMENT NUMBER', docNum);
   addField('invoice_number', 'INVOICE NUMBER', invNum);
   addField('document_date', 'DOCUMENT DATE', docDate);
-  addField('vendor_name', 'VENDOR NAME', vendorName);
-  addField('gstin', 'GSTIN', vendorGstin);
-  addField('vendor_gstin', 'VENDOR GSTIN', vendorGstin);
-  addField('pan', 'PAN', vendorPan);
-  addField('vendor_address', 'VENDOR ADDRESS', vendorAddress);
+  addField('vendor_name', 'VENDOR NAME', finalVendorName);
+  addField('gstin', 'GSTIN', finalVendorGstin);
+  addField('vendor_gstin', 'VENDOR GSTIN', finalVendorGstin);
+  addField('pan', 'PAN', finalVendorPan);
+  addField('vendor_address', 'VENDOR ADDRESS', finalVendorAddress);
+  if (vendorCategory) addField('vendor_category', 'VENDOR CATEGORY', vendorCategory);
+  if (materialSupplied) addField('material_supplied', 'MATERIAL SUPPLIED', materialSupplied);
+  if (inwardStockType) addField('inward_stock_type', 'INWARD STOCK TYPE', inwardStockType);
+  if (conversionRule) addField('conversion_rule', 'CONVERSION RULE', conversionRule);
   addField('customer_name', 'CUSTOMER NAME', custName);
   addField('customer_gstin', 'CUSTOMER GSTIN', custGstin);
   addField('po_number', 'PO NUMBER', poNum);

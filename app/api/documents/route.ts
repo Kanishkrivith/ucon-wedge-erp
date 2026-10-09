@@ -7,6 +7,7 @@ import { pool } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { processDocumentOCR } from '@/lib/ai/document-ocr';
 import { processExcelDocument } from '@/lib/ai/excel-document-parser';
+import { resolveRegisteredVendor } from '@/lib/vendors/vendor-resolver';
 
 const json = NextResponse.json;
 
@@ -395,7 +396,17 @@ export async function POST(req: Request) {
       const safeVendor = sanitizeTextForPg(vendorField);
 
       let vendorId = null;
-      if (safeVendor) {
+      const gstinVal = ocrResult.fields.find((f: any) =>
+        ['gstin', 'GSTIN', 'vendor_gstin', 'VENDOR_GSTIN'].includes(f.fieldName)
+      )?.normalizedValue;
+      const panVal = ocrResult.fields.find((f: any) =>
+        ['pan', 'PAN'].includes(f.fieldName)
+      )?.normalizedValue;
+
+      const regV = await resolveRegisteredVendor(safeVendor, gstinVal, panVal);
+      if (regV) {
+        vendorId = regV.id;
+      } else if (safeVendor) {
         let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${safeVendor}%`]);
         if (!vRes.rows[0]) {
           const firstWord = safeVendor.split(' ')[0];
@@ -856,7 +867,17 @@ export async function PATCH(req: Request) {
       const safeVendor = sanitizeTextForPg(vendorField);
 
       let vendorId = null;
-      if (safeVendor) {
+      const gstinVal = ocrResult.fields.find((f: any) =>
+        ['gstin', 'GSTIN', 'vendor_gstin', 'VENDOR_GSTIN'].includes(f.fieldName)
+      )?.normalizedValue;
+      const panVal = ocrResult.fields.find((f: any) =>
+        ['pan', 'PAN'].includes(f.fieldName)
+      )?.normalizedValue;
+
+      const regV = await resolveRegisteredVendor(safeVendor, gstinVal, panVal);
+      if (regV) {
+        vendorId = regV.id;
+      } else if (safeVendor) {
         let vRes = await pool.query('SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1', [`%${safeVendor}%`]);
         if (!vRes.rows[0]) {
           const firstWord = safeVendor.split(' ')[0];
@@ -1107,7 +1128,13 @@ export async function PATCH(req: Request) {
           doc.vendor_name;
 
         let vendorId = doc.vendor_id;
-        if (vendorName) {
+        const gstinVal = body.gstin || getVal(['gstin', 'GSTIN', 'vendor_gstin', 'VENDOR_GSTIN']);
+        const panVal = body.pan || getVal(['pan', 'PAN', 'vendor_pan']);
+
+        const regV = await resolveRegisteredVendor(vendorName, gstinVal, panVal);
+        if (regV) {
+          vendorId = regV.id;
+        } else if (vendorName) {
           let vCheck = await client.query(
             'SELECT id FROM vendors WHERE canonical_name ILIKE $1 LIMIT 1',
             [`%${String(vendorName).trim()}%`]

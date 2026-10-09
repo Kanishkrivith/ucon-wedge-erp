@@ -1,6 +1,6 @@
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-function Read-Docx($path) {
+function Read-Docx-Full($path) {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($path)
     $entry = $zip.GetEntry('word/document.xml')
     $stream = $entry.Open()
@@ -11,8 +11,7 @@ function Read-Docx($path) {
     $text = [System.Text.RegularExpressions.Regex]::Replace($xml, '<[^>]+>', ' ')
     $text = [System.Text.RegularExpressions.Regex]::Replace($text, '\s+', ' ')
     Write-Output ("=== " + $path + " ===")
-    Write-Output $text.Substring(0, [Math]::Min(1500, $text.Length))
+    Write-Output $text
 }
 
-Read-Docx 'D:\Ucon Wedge Unit\all scan\Plan.docx'
-Read-Docx 'D:\Ucon Wedge Unit\all scan\Wedge_Manufacturing process.docx'
+Read-Docx-Full 'D:\Ucon Wedge Unit\all scan\Wedge_Manufacturing process.docx'
