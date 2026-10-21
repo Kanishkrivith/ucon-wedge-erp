@@ -74,6 +74,20 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Login error:', error);
+    const msg = String(error?.message || '');
+    if (
+      msg.includes('ENOTFOUND') ||
+      msg.includes('ECONNREFUSED') ||
+      msg.includes('ETIMEDOUT') ||
+      msg.includes('tenant') ||
+      error?.code === 'XX000' ||
+      error?.code === 'ECONNREFUSED'
+    ) {
+      return NextResponse.json(
+        { error: 'Database is currently paused on Supabase. Please open your Supabase dashboard and click "Restore Project" to resume.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
   }
 }
