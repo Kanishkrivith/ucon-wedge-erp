@@ -611,6 +611,120 @@ export default function StockFlowPage() {
         </div>
       </div>
 
+      {/* SECTION 5: TALLY PRIME ACCOUNTING INTEGRATION & 1-CLICK EXPORT */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+          border: '1px solid #334155',
+          borderRadius: 12,
+          padding: 24,
+          color: '#ffffff',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 18, borderBottom: '1px solid #334155', paddingBottom: 16 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ background: '#2563eb', color: '#ffffff', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 4 }}>
+                TALLY SOLUTIONS PARTNER COMPLIANT
+              </span>
+              <span style={{ color: '#94a3b8', fontSize: 12 }}>TallyPrime Silver / Gold 3.0+ / 4.0 / 5.0</span>
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, margin: '4px 0', color: '#ffffff' }}>
+              📊 Tally Prime Accounting &amp; Debit Note Sync Hub
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: 13, margin: 0, maxWidth: 650 }}>
+              Export reconciled steel purchases, subcontractor cutting bills, CNC machining invoices, and automatic under-yield Debit Notes directly into standard Tally XML format for your accountant.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <a
+              href="/api/tally/export?type=masters"
+              download="ucon_tally_masters_ledgers.xml"
+              style={{
+                background: '#334155',
+                color: '#ffffff',
+                padding: '9px 14px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid #475569',
+              }}
+            >
+              📥 Export Ledgers (Masters XML)
+            </a>
+            <a
+              href="/api/tally/export?type=vouchers"
+              download="ucon_tally_vouchers_transactions.xml"
+              style={{
+                background: '#2563eb',
+                color: '#ffffff',
+                padding: '9px 14px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              📥 Export Vouchers &amp; Debit Notes XML
+            </a>
+            <a
+              href="/api/tally/export?type=all"
+              download="ucon_tally_complete_import.xml"
+              style={{
+                background: '#16a34a',
+                color: '#ffffff',
+                padding: '9px 16px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 800,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              📦 Complete Tally Import Bundle (.xml)
+            </a>
+          </div>
+        </div>
+
+        {/* 3 Steps Guide for Accountant */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+          <div style={{ background: 'rgba(255,255,255,0.05)', padding: 14, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#60a5fa' }}>STEP 1: 1-CLICK DOWNLOAD</span>
+            <h4 style={{ margin: '4px 0 6px', fontSize: 13, color: '#f1f5f9' }}>Download Tally XML File</h4>
+            <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>
+              Click <strong>&quot;Complete Tally Import Bundle&quot;</strong> above. It bundles 36 master vendor ledgers, raw material purchase bills, job-work charges, and all penalty debit notes into a single compliant file.
+            </p>
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.05)', padding: 14, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#34d399' }}>STEP 2: IMPORT IN TALLY PRIME</span>
+            <h4 style={{ margin: '4px 0 6px', fontSize: 13, color: '#f1f5f9' }}>Open Tally Prime &gt; Import</h4>
+            <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>
+              Open your company in Tally Prime, press <strong>Alt + O</strong> (or click <strong>Import</strong> on top menu bar), select <strong>Transactions / Masters</strong>, and pick the downloaded XML file.
+            </p>
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.05)', padding: 14, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#fbbf24' }}>STEP 3: LEDGER RECONCILIATION</span>
+            <h4 style={{ margin: '4px 0 6px', fontSize: 13, color: '#f1f5f9' }}>Automated Audit &amp; Deductions</h4>
+            <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>
+              Tally automatically updates your Sundry Creditors ledger balances. Under-yield debit notes (e.g. ₹4,062.50) are deducted from the vendor&apos;s pending payment automatically!
+            </p>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }

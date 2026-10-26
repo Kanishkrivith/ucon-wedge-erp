@@ -207,8 +207,36 @@ export default function ProcurementPage() {
 
       {/* Invoices List */}
       <section className="panel" style={{ marginTop: 18 }}>
-        <div className="panel-head">
+        <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <h2>Purchase &amp; Service Invoices</h2>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a
+              href="/api/tally/export?type=masters"
+              download="ucon_tally_masters.xml"
+              className="ghost"
+              style={{ fontSize: 12, padding: '6px 12px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              📥 Tally Masters XML
+            </a>
+            <a
+              href="/api/tally/export?type=all"
+              download="ucon_tally_complete_import.xml"
+              style={{
+                fontSize: 12,
+                padding: '6px 14px',
+                background: '#16a34a',
+                color: '#fff',
+                borderRadius: 6,
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              📊 Export to Tally Prime XML
+            </a>
+          </div>
         </div>
         <div className="table-wrap">
           <table>
