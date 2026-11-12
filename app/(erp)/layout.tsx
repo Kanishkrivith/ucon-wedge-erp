@@ -8,6 +8,7 @@ const nav = [
   ['/routing', '⇄', 'Routing & Flow'],
   ['/vendors', '🏢', 'Vendor Master Directory'],
   ['/stock-flow', '⚖', 'Material & CNC Stock Flow'],
+  ['/registry', '📋', 'Inward / Outward & Traceability'],
   ['/production', '⚙', 'Production (15 Stages)'],
   ['/inventory', '▦', 'Inventory & Stock'],
   ['/procurement', '◈', 'Purchase & Vendors'],
