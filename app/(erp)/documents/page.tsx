@@ -628,7 +628,26 @@ export default function DocumentsPage() {
             Canonical extractions strictly conform to Master Library Groups A–V. Missing data is flagged <b>NOT AVAILABLE / NEEDS REVIEW</b> without synthetic hallucination. Final ERP posting requires human verification.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <a
+            href="/documents/compare"
+            style={{
+              fontSize: 12,
+              padding: '7px 16px',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 800,
+              backgroundColor: '#16a34a',
+              color: '#ffffff',
+              borderRadius: 6,
+              boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)',
+            }}
+            title="Open Individual PO vs Scanned Document Comparison Window"
+          >
+            ⚖ PO vs Scanned Comparison Window (464 Approved)
+          </a>
           <a
             href="/templates/UCON_WEDGE_MASTER_CANONICAL_AND_ROUTING_LIBRARY.xlsx"
             download="UCON_WEDGE_MASTER_CANONICAL_AND_ROUTING_LIBRARY.xlsx"
