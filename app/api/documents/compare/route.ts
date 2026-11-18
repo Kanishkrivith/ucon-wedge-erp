@@ -92,7 +92,7 @@ export async function GET(req: Request) {
       }
 
       const linesRes = await pool.query(`
-        SELECT document_id, line_no, description, quantity, unit, unit_price, total_amount
+        SELECT document_id, line_no, description, quantity, unit, unit_rate AS unit_price, total_amount
         FROM document_line_items
         WHERE document_id = ANY($1::uuid[])
         ORDER BY line_no

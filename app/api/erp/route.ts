@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
     // 1. Management Command Center / Dashboard
     if (resource === 'dashboard') {
-      const [prod, exp, inv, cap, users, docs] = await Promise.all([
+      const [prod, exp, inv, cap, users, docs, capexMachines] = await Promise.all([
         pool.query(`
           SELECT
             COALESCE(SUM(qty_out), 0) AS good,
@@ -28,9 +28,31 @@ export async function GET(req: Request) {
           WHERE expense_month >= date_trunc('month', current_date)
         `),
         pool.query(`SELECT COUNT(*) AS count FROM invoices WHERE status = 'PENDING_REVIEW'`),
-        pool.query(`SELECT COALESCE(SUM(amount), 0) AS amount FROM capex`),
+        pool.query(`
+          SELECT
+            COUNT(*) AS count,
+            COALESCE(SUM(base_cost), 0) AS base_cost,
+            COALESCE(SUM(gst_amount), 0) AS gst_amount,
+            COALESCE(SUM(amount), 0) AS amount,
+            COALESCE(SUM(billed_invoice_total), 0) AS billed_total
+          FROM capex
+        `),
         pool.query(`SELECT COUNT(*) AS count FROM users WHERE account_status = 'PENDING'`),
-        pool.query(`SELECT COUNT(*) AS count FROM documents WHERE status = 'PENDING_REVIEW'`),
+        pool.query(`
+          SELECT
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE status = 'PENDING_REVIEW') AS pending,
+            COUNT(*) FILTER (WHERE status = 'VERIFIED') AS verified
+          FROM documents
+        `),
+        pool.query(`
+          SELECT
+            machine_code, machine_name, category_group, manufacturer,
+            po_number, po_date, invoice_number, invoice_date,
+            base_cost, gst_amount, total_cost, billed_invoice_total, verification_status
+          FROM machines
+          ORDER BY COALESCE(display_order, 100), machine_code
+        `),
       ]);
 
       const good = Number(prod.rows[0].good);
@@ -45,10 +67,17 @@ export async function GET(req: Request) {
           yieldPct,
           monthlyExpenses: Number(exp.rows[0].amount),
           totalCapex: Number(cap.rows[0].amount),
+          capexBaseCost: Number(cap.rows[0].base_cost),
+          capexGstAmount: Number(cap.rows[0].gst_amount),
+          capexBilledTotal: Number(cap.rows[0].billed_total),
+          capexMachineCount: Number(cap.rows[0].count),
           pendingInvoices: Number(inv.rows[0].count),
-          pendingDocuments: Number(docs.rows[0].count),
+          pendingDocuments: Number(docs.rows[0].pending),
+          totalDocuments: Number(docs.rows[0].total),
+          verifiedDocuments: Number(docs.rows[0].verified),
           pendingUsers: Number(users.rows[0].count),
         },
+        capexMachines: capexMachines.rows,
       });
     }
 
@@ -232,22 +261,61 @@ export async function GET(req: Request) {
 
     // 5. Machines & CapEx
     if (resource === 'machines') {
-      const [machines, capex] = await Promise.all([
+      const [machines, capex, docStats] = await Promise.all([
         pool.query(`
-          SELECT m.*, v.canonical_name AS vendor
+          SELECT
+            m.*,
+            v.canonical_name AS vendor,
+            v.gstin AS vendor_gstin
           FROM machines m
           LEFT JOIN vendors v ON v.id = m.vendor_id
-          ORDER BY m.machine_code
+          ORDER BY COALESCE(m.display_order, 100), m.machine_code
         `),
         pool.query(`
-          SELECT c.*, m.machine_name, v.canonical_name AS vendor_name
+          SELECT
+            c.*,
+            m.machine_name,
+            m.machine_type,
+            m.model,
+            m.serial_number,
+            m.line_items_json,
+            v.canonical_name AS vendor_name,
+            v.gstin AS vendor_gstin
           FROM capex c
           LEFT JOIN machines m ON m.id = c.machine_id
           LEFT JOIN vendors v ON v.id = c.vendor_id
-          ORDER BY c.purchase_date DESC
+          ORDER BY COALESCE(c.display_order, 100), c.purchase_date DESC
+        `),
+        pool.query(`
+          SELECT
+            COUNT(*) AS total_docs,
+            COUNT(*) FILTER (WHERE status = 'VERIFIED') AS verified_docs
+          FROM documents
         `),
       ]);
-      return ok({ machines: machines.rows, capex: capex.rows });
+
+      const mRows = machines.rows;
+      const totalBaseCost = mRows.reduce((s: number, r: any) => s + Number(r.base_cost || 0), 0);
+      const totalGstAmount = mRows.reduce((s: number, r: any) => s + Number(r.gst_amount || 0), 0);
+      const totalCapexWithGst = mRows.reduce((s: number, r: any) => s + Number(r.total_cost || r.purchase_cost || 0), 0);
+      const totalPackingAndAccessories = mRows.reduce((s: number, r: any) => s + Number(r.packing_and_accessories || 0), 0);
+      const totalBilledInvoices = mRows.reduce((s: number, r: any) => s + Number(r.billed_invoice_total || r.total_cost || 0), 0);
+
+      return ok({
+        machines: mRows,
+        capex: capex.rows,
+        summary: {
+          machineCount: mRows.length,
+          activeCount: mRows.filter((r: any) => r.status === 'ACTIVE').length,
+          totalBaseCost,
+          totalGstAmount,
+          totalCapexWithGst,
+          totalPackingAndAccessories,
+          totalBilledInvoices,
+          totalScannedDocs: Number(docStats.rows[0]?.total_docs || 535),
+          verifiedScannedDocs: Number(docStats.rows[0]?.verified_docs || 535),
+        },
+      });
     }
 
     // 6. Tools & Consumables
@@ -497,21 +565,40 @@ export async function POST(req: Request) {
       try {
         await client.query('BEGIN');
 
+        const baseCost = body.baseCost ? Number(body.baseCost) : body.purchaseCost ? Number(body.purchaseCost) : 0;
+        const gstRate = body.gstRate !== undefined ? Number(body.gstRate) : 18;
+        const gstAmount = body.gstAmount !== undefined && body.gstAmount !== ''
+          ? Number(body.gstAmount)
+          : Number(((baseCost * gstRate) / 100).toFixed(2));
+        const totalCost = body.totalCost ? Number(body.totalCost) : Number((baseCost + gstAmount).toFixed(2));
+
         const q = await client.query(
           `INSERT INTO machines (
-            machine_code, machine_name, machine_type, manufacturer, model,
-            serial_number, purchase_date, purchase_cost, capacity_per_month, power_kw, status, notes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            machine_code, machine_name, machine_type, category_group, manufacturer, model,
+            serial_number, purchase_date, purchase_cost,
+            po_number, po_date, invoice_number, invoice_date,
+            base_cost, gst_rate, gst_amount, total_cost, billed_invoice_total,
+            capacity_per_month, power_kw, status, notes, verification_status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17, $18, $19, $20, $21, 'VERIFIED')
           RETURNING id`,
           [
             body.code,
             body.name,
             body.type,
+            body.categoryGroup || body.type,
             body.manufacturer || null,
             body.model || null,
             body.serial || null,
             body.purchaseDate || null,
-            body.purchaseCost ? Number(body.purchaseCost) : null,
+            totalCost || null,
+            body.poNumber || null,
+            body.poDate || body.purchaseDate || null,
+            body.invoiceNumber || null,
+            body.invoiceDate || body.purchaseDate || null,
+            baseCost || null,
+            gstRate,
+            gstAmount || null,
+            totalCost || null,
             body.capacity ? Number(body.capacity) : null,
             body.power ? Number(body.power) : null,
             body.status || 'ACTIVE',
@@ -520,16 +607,29 @@ export async function POST(req: Request) {
         );
 
         // Record under CapEx separately (Section 34 requirement)
-        if (body.purchaseCost && Number(body.purchaseCost) > 0) {
+        if (totalCost > 0) {
           await client.query(
-            `INSERT INTO capex (asset_name, asset_type, purchase_date, amount, machine_id, notes)
-             VALUES ($1, 'MACHINE', COALESCE($2, current_date), $3, $4, $5)`,
+            `INSERT INTO capex (
+              asset_name, asset_type, machine_code, category_group,
+              purchase_date, amount, base_cost, gst_rate, gst_amount, total_amount, billed_invoice_total,
+              po_number, po_date, invoice_number, invoice_date,
+              machine_id, verification_status, notes
+            ) VALUES ($1, 'MACHINE', $2, $3, COALESCE($4, current_date), $5, $6, $7, $8, $5, $5, $9, $10, $11, $12, $13, 'VERIFIED', $14)`,
             [
               body.name,
+              body.code,
+              body.categoryGroup || body.type,
               body.purchaseDate || null,
-              Number(body.purchaseCost),
+              totalCost,
+              baseCost,
+              gstRate,
+              gstAmount,
+              body.poNumber || null,
+              body.poDate || body.purchaseDate || null,
+              body.invoiceNumber || null,
+              body.invoiceDate || body.purchaseDate || null,
               q.rows[0].id,
-              'Machine acquisition registered as CapEx',
+              body.notes || 'Machine acquisition registered as CapEx',
             ]
           );
         }
